@@ -1,105 +1,113 @@
-openapi: 3.0.3
-info:
-  title: NexusRouter Gateway API
-  version: "1.0.0"
-  description: |
-    OpenAI 兼容 Chat Completions 网关。官方 REST 概览与认证约定见 https://developers.openai.com/api/reference/overview
+openapi: 3.0.0
 externalDocs:
   description: OpenAI API Overview
   url: https://developers.openai.com/api/reference/overview
-servers:
-  - url: /
-    description: 当前网关（相对本服务根路径）
-security:
-  - bearerAuth: []
+info:
+  contact: {}
+  description: OpenAI 兼容 Chat Completions 网关。REST 概览与认证约定参见
+    https://developers.openai.com/api/reference/overview
+  title: NexusRouter Gateway API
+  version: 1.0.0
 paths:
   /v1/chat/completions:
     post:
-      operationId: createChatCompletion
-      summary: Chat Completions
-      description: 与 OpenAI Chat Completions 子集兼容；请求体为 JSON，响应可为 JSON 或 text/event-stream。
-      security:
-        - bearerAuth: []
+      description: 与 OpenAI Chat Completions 兼容子集；官方概览
+        https://developers.openai.com/api/reference/overview
+      parameters:
+        - description: 可选，与 Bearer 二选一
+          in: header
+          name: X-API-Key
+          schema:
+            type: string
       requestBody:
-        required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ChatCompletionRequest"
+              $ref: "#/components/schemas/handler.ChatCompletionRequest"
+        description: 请求体
+        required: true
       responses:
         "200":
-          description: 成功；非流式时为 application/json，流式时为 text/event-stream
+          description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ChatCompletionResponse"
+                $ref: "#/components/schemas/handler.ChatCompletionResponse"
             text/event-stream:
               schema:
-                type: string
+                $ref: "#/components/schemas/handler.ChatCompletionResponse"
         "401":
-          description: 网关鉴权失败
+          description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorBody"
+                additionalProperties:
+                  type: string
+                type: object
+            text/event-stream:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
         "502":
-          description: 上游不可用
+          description: Bad Gateway
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorBody"
-        "504":
-          description: 上游超时
-          content:
-            application/json:
+                additionalProperties:
+                  type: string
+                type: object
+            text/event-stream:
               schema:
-                $ref: "#/components/schemas/ErrorBody"
+                additionalProperties:
+                  type: string
+                type: object
+      security:
+        - BearerAuth: []
+      summary: Chat Completions
+      tags:
+        - chat
+servers:
+  - url: //localhost:8080/
 components:
   securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
+    BearerAuth:
+      description: Bearer 令牌，与 OpenAI 一致（见官方概览）。
+      in: header
+      name: Authorization
+      type: apiKey
   schemas:
-    ChatMessage:
-      type: object
+    handler.ChatCompletionRequest:
       properties:
-        role:
-          type: string
-          enum: [system, user, assistant, tool]
-        content:
-          type: string
-    ChatCompletionRequest:
-      type: object
-      required: [model, messages]
-      properties:
-        model:
-          type: string
         messages:
-          type: array
           items:
-            $ref: "#/components/schemas/ChatMessage"
+            $ref: "#/components/schemas/handler.ChatMessage"
+          type: array
+        model:
+          example: gpt-4o-mini
+          type: string
         stream:
           type: boolean
-    ChatCompletionResponse:
       type: object
+    handler.ChatCompletionResponse:
       properties:
-        id:
-          type: string
-        object:
-          type: string
         created:
           type: integer
+        id:
+          example: chatcmpl-xxx
+          type: string
         model:
           type: string
-        choices:
-          type: array
-          items:
-            type: object
-    ErrorBody:
+        object:
+          example: chat.completion
+          type: string
       type: object
+    handler.ChatMessage:
       properties:
-        code:
+        content:
+          example: hello
           type: string
-        message:
+        role:
+          example: user
           type: string
+      type: object
