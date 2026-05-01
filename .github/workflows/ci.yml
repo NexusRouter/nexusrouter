@@ -31,6 +31,34 @@ jobs:
           # Needs repo scope to write signatures into NexusRouter/cla (and comment on PRs if default token is insufficient).
           PERSONAL_ACCESS_TOKEN: ${{ secrets.CLA_ASSISTANT_TOKEN }}
 
+  gateway-go:
+    name: Gateway (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/gateway
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: services/gateway/go.mod
+          cache-dependency-path: services/gateway/go.sum
+
+      - name: Go fmt
+        run: test -z "$(gofmt -l .)"
+
+      - name: Go vet
+        run: go vet ./...
+
+      - name: Go test
+        run: go test ./... -count=1
+
+      - name: Go build
+        run: go build -o /tmp/nexusrouter-gateway .
+
   code-quality:
     name: Code & Spec Quality Check
     runs-on: ubuntu-latest
@@ -42,10 +70,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm install
 
       - name: Install OpenSpec CLI
         run: npm install -g @fission-ai/openspec@latest

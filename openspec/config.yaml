@@ -1,13 +1,11 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+# Shown to AI when creating OpenSpec artifacts. Full narrative: openspec/project.md
+context: |
+  NexusRouter: open-source LLM API gateway (OpenAI-compatible), AGPL-3.0.
+  Backend: Go 1.25+, Gin — module root at services/gateway/ (see go.mod).
+  Frontend: reserved under web/ (no package.json at repo root).
+  Specs: openspec/specs/; active proposals: openspec/changes/.
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
