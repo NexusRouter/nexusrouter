@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/config"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/runtime"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -16,9 +17,13 @@ import (
 func TestRegister_ChatCompletions_MethodNotAllowed(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	e := gin.New()
+	cfg := &config.Config{EnableSwaggerUI: false, GatewayAPIKeys: []string{"k"}}
+	rt, err := runtime.NewStore(cfg)
+	require.NoError(t, err)
 	Register(e, Deps{
-		Config: &config.Config{EnableSwaggerUI: false, GatewayAPIKeys: []string{"k"}},
-		Log:    zap.NewNop(),
+		Config:  cfg,
+		Log:     zap.NewNop(),
+		Runtime: rt,
 	})
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/chat/completions", nil)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/config"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/keystore"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/runtime"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -27,7 +28,9 @@ func TestOpenAPI_Swagger_Contract(t *testing.T) {
 	}
 	ks, err := keystore.New(cfg, zap.NewNop())
 	require.NoError(t, err)
-	Register(e, Deps{Config: cfg, Log: zap.NewNop(), KeyStore: ks})
+	rt, err := runtime.NewStore(cfg)
+	require.NoError(t, err)
+	Register(e, Deps{Config: cfg, Log: zap.NewNop(), KeyStore: ks, Runtime: rt})
 
 	t.Run("GET /openapi.yaml 200 且 openapi 3.0", func(t *testing.T) {
 		rec := httptest.NewRecorder()

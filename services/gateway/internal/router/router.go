@@ -8,6 +8,7 @@ import (
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/handler"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/keystore"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/openapi"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/runtime"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -17,10 +18,11 @@ type Deps struct {
 	Config   *config.Config
 	Log      *zap.Logger
 	KeyStore *keystore.Store
+	Runtime  *runtime.Store
 }
 
 // Register 注册业务路由、OpenAPI 与 Chat 代理。
-// Chat 链中间件顺序：RequestID（引擎级）→ ZapRecovery → ErrorJSON → GatewayAuth → ChatProxy。
+// 引擎级顺序见 provider：CORS → RequestID → Recovery → ErrorJSON → IP 限流 → 本处 GatewayAuth → Key 限流 → ChatProxy。
 func Register(r *gin.Engine, d Deps) {
 	if d.Log == nil {
 		d.Log = zap.NewNop()
@@ -34,8 +36,14 @@ func Register(r *gin.Engine, d Deps) {
 
 	openapi.Register(r, cfg.EnableSwaggerUI)
 
-	if strings.TrimSpace(cfg.AdminReloadToken) != "" && d.KeyStore != nil {
-		r.POST("/internal/reload-keys", handler.AdminReloadKeys(cfg, d.KeyStore, log))
+	if strings.TrimSpace(cfg.AdminReloadToken) != "" {
+		if d.KeyStore != nil {
+			r.POST("/internal/reload-keys", handler.AdminReloadKeys(cfg, d.KeyStore, log))
+		}
+		if d.Runtime != nil {
+			r.POST("/internal/reload-config", handler.AdminReloadConfig(cfg, d.Runtime, log))
+			r.PUT("/internal/upstream/active", handler.AdminSetActiveUpstream(cfg, d.Runtime, log))
+		}
 	}
 
 	disallow := func(c *gin.Context) {
@@ -50,5 +58,9 @@ func Register(r *gin.Engine, d Deps) {
 		c.Status(http.StatusNoContent)
 	})
 
-	r.POST("/v1/chat/completions", handler.GatewayAuth(d.KeyStore), handler.ChatProxy(cfg, log))
+	r.POST("/v1/chat/completions",
+		handler.GatewayAuth(d.KeyStore),
+		handler.KeyRateLimit(d.Runtime, log),
+		handler.ChatProxy(cfg, log, d.Runtime),
+	)
 }

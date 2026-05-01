@@ -8,6 +8,7 @@ import (
 
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/config"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/keystore"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/runtime"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,9 @@ func TestProvideEngine_HealthAndNotFound(t *testing.T) {
 	cfg := &config.Config{EnableSwaggerUI: false}
 	ks, err := keystore.New(cfg, log)
 	require.NoError(t, err)
-	e := ProvideEngine(log, cfg, ks)
+	rt, err := runtime.NewStore(cfg)
+	require.NoError(t, err)
+	e := ProvideEngine(log, cfg, ks, rt)
 
 	t.Run("GET /health", func(t *testing.T) {
 		rec := httptest.NewRecorder()

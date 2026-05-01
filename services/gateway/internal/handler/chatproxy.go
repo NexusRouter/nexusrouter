@@ -6,11 +6,12 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
-	"net/url"
-	"sync/atomic"
 	"time"
 
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/accesslog"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/config"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/runtime"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/upstream"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -20,33 +21,42 @@ var hopByHopHeaders = []string{
 	"Te", "Trailer", "Transfer-Encoding", "Upgrade",
 }
 
-// ChatProxy 将 POST /v1/chat/completions 反向代理至配置的上游（支持多上游轮询）。
-// 中间件顺序由路由注册保证：RequestID → Recovery → GatewayAuth → ChatProxy。
-func ChatProxy(cfg *config.Config, log *zap.Logger) gin.HandlerFunc {
-	bases := cfg.EffectiveUpstreamBases()
-	if len(bases) == 0 {
-		return func(c *gin.Context) {
-			WriteGatewayError(c, http.StatusServiceUnavailable, "UPSTREAM_NOT_CONFIGURED", "上游服务未配置")
-		}
-	}
-	parsed := make([]*url.URL, 0, len(bases))
-	for _, b := range bases {
-		u, err := url.Parse(b)
-		if err != nil || u.Scheme == "" || u.Host == "" {
-			return func(c *gin.Context) {
-				WriteGatewayError(c, http.StatusServiceUnavailable, "UPSTREAM_INVALID", "上游基址无效")
-			}
-		}
-		parsed = append(parsed, u)
-	}
+type captureWriter struct {
+	gin.ResponseWriter
+	status int
+}
 
-	var rr atomic.Uint32
+func (w *captureWriter) WriteHeader(code int) {
+	if w.status == 0 {
+		w.status = code
+	}
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *captureWriter) Write(b []byte) (int, error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	return w.ResponseWriter.Write(b)
+}
+
+// ChatProxy 将 POST /v1/chat/completions 反向代理至运行时选中的上游。
+// 引擎级中间件顺序见 provider：CORS → RequestID → Recovery → ErrorJSON → IP 限流 →（本链）鉴权 → Key 限流 → ChatProxy。
+func ChatProxy(cfg *config.Config, log *zap.Logger, rt *runtime.Store) gin.HandlerFunc {
+	pick := upstream.NewPicker()
 	transport := &http.Transport{
 		ResponseHeaderTimeout: cfg.UpstreamTimeout,
 		DialContext:           (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
 	}
 
 	return func(c *gin.Context) {
+		snap := rt.Snapshot()
+		base, upID, upHost, err := pick.Pick(snap)
+		if err != nil || base == nil {
+			WriteGatewayError(c, http.StatusServiceUnavailable, "UPSTREAM_NOT_CONFIGURED", "上游服务未配置")
+			return
+		}
+
 		if c.Request.Body != nil {
 			body, err := io.ReadAll(c.Request.Body)
 			_ = c.Request.Body.Close()
@@ -57,10 +67,6 @@ func ChatProxy(cfg *config.Config, log *zap.Logger) gin.HandlerFunc {
 			c.Request.Body = io.NopCloser(bytes.NewReader(body))
 			c.Request.ContentLength = int64(len(body))
 		}
-
-		n := uint32(len(parsed))
-		i := rr.Add(1)
-		base := parsed[i%n]
 
 		c.Request.Form = nil
 		c.Request.PostForm = nil
@@ -99,6 +105,9 @@ func ChatProxy(cfg *config.Config, log *zap.Logger) gin.HandlerFunc {
 			WriteGatewayErrorHTTP(w, r, http.StatusBadGateway, "BAD_GATEWAY", "上游不可用")
 		}
 
+		start := time.Now()
+		baseW := &closeNotifyResponseWriter{ResponseWriter: c.Writer}
+		cw := &captureWriter{ResponseWriter: baseW}
 		defer func() {
 			if rec := recover(); rec != nil {
 				if log != nil {
@@ -108,10 +117,29 @@ func ChatProxy(cfg *config.Config, log *zap.Logger) gin.HandlerFunc {
 					WriteGatewayError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "服务器内部错误")
 				}
 			}
+			st := cw.status
+			if st == 0 {
+				st = c.Writer.Status()
+			}
+			gwErr := st == http.StatusBadGateway || st == http.StatusGatewayTimeout || st == http.StatusInternalServerError
+			dur := time.Since(start).Milliseconds()
+			fields := []zap.Field{
+				zap.String("request_id", c.GetString("request_id")),
+				zap.String("method", c.Request.Method),
+				zap.String("path", c.Request.URL.Path),
+				zap.String("client_ip", c.ClientIP()),
+				zap.String("upstream_id", upID),
+				zap.String("upstream_host", upHost),
+				zap.Int("status", st),
+				zap.Int64("duration_ms", dur),
+			}
+			if fp := c.GetString("rate_limit_key"); fp != "" {
+				fields = append(fields, zap.String("api_key_fp", fp))
+			}
+			accesslog.New(snap).Write(st, gwErr, fields...)
 		}()
 
-		rw := &closeNotifyResponseWriter{ResponseWriter: c.Writer}
-		proxy.ServeHTTP(rw, c.Request)
+		proxy.ServeHTTP(cw, c.Request)
 		c.Abort()
 	}
 }

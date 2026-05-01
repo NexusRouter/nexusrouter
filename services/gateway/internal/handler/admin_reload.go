@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/config"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/keystore"
@@ -21,19 +20,8 @@ import (
 //	@Failure		500	{object}	map[string]string
 //	@Router			/internal/reload-keys [post]
 func AdminReloadKeys(cfg *config.Config, ks *keystore.Store, log *zap.Logger) gin.HandlerFunc {
-	want := strings.TrimSpace(cfg.AdminReloadToken)
 	return func(c *gin.Context) {
-		if want == "" {
-			c.Status(http.StatusNotFound)
-			return
-		}
-		h := c.GetHeader("Authorization")
-		tok := ""
-		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(h)), "bearer ") {
-			tok = strings.TrimSpace(h[7:])
-		}
-		if tok != want {
-			WriteGatewayError(c, http.StatusUnauthorized, "UNAUTHORIZED", "管理令牌无效或缺失")
+		if !requireAdminReloadToken(cfg, c) {
 			return
 		}
 		if ks == nil {
