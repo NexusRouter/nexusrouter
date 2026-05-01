@@ -1,4 +1,4 @@
-name: Project Checks (CLA + Code Quality)
+name: Project Checks (Code Quality)
 
 on:
   push:
@@ -7,31 +7,6 @@ on:
     branches: [ main ]
 
 jobs:
-  # Remote signatures (NexusRouter/cla) require repo secret CLA_ASSISTANT_TOKEN (mapped to PERSONAL_ACCESS_TOKEN below).
-  cla-check:
-    name: CLA Signature Check
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-      statuses: write
-    steps:
-      - name: Check if contributor signed CLA
-        # contributor-assistant/github-action (formerly cla-assistant); pin semver, not @v2.
-        uses: contributor-assistant/github-action@v2.6.1
-        with:
-          path-to-signatures: 'signatures/version1/cla.json'
-          path-to-document: 'https://github.com/NexusRouter/cla/blob/main/CLA.md'
-          branch: main
-          allowlist: dependabot[bot]
-          remote-organization-name: NexusRouter
-          remote-repository-name: cla
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Needs repo scope to write signatures into NexusRouter/cla (and comment on PRs if default token is insufficient).
-          PERSONAL_ACCESS_TOKEN: ${{ secrets.CLA_ASSISTANT_TOKEN }}
-
   gateway-go:
     name: Gateway (Go)
     runs-on: ubuntu-latest

@@ -1,0 +1,28 @@
+name: CLA
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  cla-check:
+    name: CLA Signature Check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      statuses: write
+    steps:
+      - name: Check if contributor signed CLA
+        uses: contributor-assistant/github-action@v2.6.1
+        with:
+          path-to-signatures: 'signatures/version1/cla.json'
+          path-to-document: 'https://github.com/NexusRouter/cla/blob/main/CLA.md'
+          branch: main
+          allowlist: dependabot[bot]
+          remote-organization-name: NexusRouter
+          remote-repository-name: cla
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PERSONAL_ACCESS_TOKEN: ${{ secrets.CLA_ASSISTANT_TOKEN }}
