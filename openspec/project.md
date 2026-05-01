@@ -8,31 +8,41 @@ NexusRouter 是开源 LLM API 网关：以 **OpenAI 兼容** API 统一接入多
 
 | 区域 | 技术 | 路径 |
 |------|------|------|
-| 网关（后端） | Go 1.25+，[Gin](https://github.com/gin-gonic/gin) | `services/gateway/` |
-| 前端（预留） | 待定（将置于 `web/`） | `web/` |
+| 网关（后端） | Go **1.24.x**，Gin，Wire，Zap，GORM / Postgres / Redis 等（见 `go.mod`） | `services/gateway/` |
+| 控制台（前端） | Node **≥22**，**pnpm 9**，Vite 6，React 19，TypeScript 5.7，Tailwind v4，antd 5 | `web/dashboard/` |
 | 规范驱动 | [OpenSpec](https://github.com/fission-ai/openspec) | `openspec/`（`specs/` 能力规范，`changes/` 变更提案） |
 | CI | GitHub Actions | `.github/workflows/` |
 
 ## 仓库布局（约定）
 
 ```
-openspec/specs/     # 能力规范（真理源）
-openspec/changes/   # 进行中的变更提案
-services/gateway/ # Go 网关服务（go.mod 在此模块根目录）
-web/                # 前端工程（后续初始化）
+openspec/specs/       # 能力规范（真理源）
+openspec/changes/     # 进行中的变更提案
+services/gateway/     # Go 网关（入口：cmd/api，go.mod 在模块根）
+web/dashboard/        # React 控制台（pnpm）
 ```
 
-## 本地开发（网关）
+## 本地开发
+
+**网关**
 
 ```bash
 cd services/gateway
-go run .
+go run ./cmd/api
 ```
 
-默认监听 `:8080`，健康检查：`GET /health`。
+默认 **:8080**，`GET /health`。Wire 重生成见 `services/gateway/README.md`。
+
+**控制台**
+
+```bash
+cd web/dashboard
+pnpm install
+pnpm dev
+```
 
 ---
 
 ## English (short)
 
-NexusRouter: open-source LLM API gateway (OpenAI-compatible), AGPL-3.0. Backend: **Go + Gin** in `services/gateway/`. Frontend TBD under `web/`. Specs and proposals live under `openspec/`.
+NexusRouter: open-source LLM API gateway (OpenAI-compatible), AGPL-3.0. Backend: **Go 1.24 + Gin** in `services/gateway/` (entry `cmd/api`). Dashboard: **React + Vite + pnpm** in `web/dashboard/`. Specs under `openspec/`.

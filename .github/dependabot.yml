@@ -1,5 +1,13 @@
 version: 2
 updates:
+  - package-ecosystem: "npm"
+    directory: "/web/dashboard"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "dashboard"
   - package-ecosystem: "gomod"
     directory: "/services/gateway"
     schedule:

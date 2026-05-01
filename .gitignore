@@ -39,8 +39,47 @@ logs
 *.log
 *.log.*
 
-# Frontend (web/)
-web/node_modules/
-web/dist/
-web/.next/
-web/build/
+# Frontend (web/dashboard/)
+web/dashboard/node_modules/
+web/dashboard/dist/
+web/dashboard/dist-ssr/
+web/dashboard/.next/
+web/dashboard/build/
+web/dashboard/.vite/
+web/dashboard/coverage/
+web/dashboard/.eslintcache
+
+# ---- Intermediate / local build artifacts (do not commit) ----
+# TypeScript incremental (project references / tsc -b)
+*.tsbuildinfo
+
+# Test & coverage (repo root or tools)
+coverage/
+*.lcov
+.nyc_output/
+htmlcov/
+
+# Analytics / script outputs (e.g. data skills default paths)
+output/
+
+# Local temp (e.g. air live reload, ad-hoc scripts)
+tmp/
+
+# ESLint cache (monorepo root)
+.eslintcache
+
+# Go CPU / mem profiles from benchmarks
+*.prof
+*.pprof
+
+# JetBrains IDE (local)
+.idea/
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Optional local env overrides (keep .env.example tracked if you use one)
+.env.local
+.env.*.local

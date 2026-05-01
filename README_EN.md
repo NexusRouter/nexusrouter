@@ -13,16 +13,31 @@ NexusRouter is a high-performance, open-source LLM API gateway that exposes **Op
 - **API key** management and quota control
 - **Token usage** tracking and real-time billing
 - **Rate limiting** and request retries
-- Lightweight and high-performance (planned stack: **Go** and **Gin**, among others)
+- Lightweight stack: **Go 1.24** + **Gin** (`services/gateway`), dashboard **React + Vite** (`web/dashboard`)
 - **AGPLv3** open-source license (closed-source commercial use requires compliance or separate permission)
 
 ## Quick Start
 
+**Prerequisites:** Go **1.24.x**, Node **≥ 22 (LTS)**, [pnpm](https://pnpm.io/) **9.x** (recommended: `corepack enable`).
+
+**Gateway (Go)**
+
 ```bash
-# Coming soon
+cd services/gateway
+go run ./cmd/api
 ```
 
-Install, configuration, and run instructions will be added here once the implementation stabilizes.
+Listens on **http://127.0.0.1:8080** by default. Health: `GET /health`.
+
+**Dashboard (frontend)**
+
+```bash
+cd web/dashboard
+pnpm install
+pnpm dev
+```
+
+See `openspec/project.md` and `services/gateway/README.md` for more detail.
 
 ## Contributing
 

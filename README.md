@@ -13,16 +13,31 @@ NexusRouter 是一款高性能的开源 LLM API 网关，通过 **OpenAI 兼容*
 - **API Key** 管理与配额控制
 - **Token 用量** 追踪与实时计费
 - **限流** 与请求重试
-- 轻量、高性能（规划采用 **Go** 与 **Gin** 等技术栈）
+- 轻量、高性能：**Go 1.24** + **Gin**（`services/gateway`），控制台 **React + Vite**（`web/dashboard`）
 - **AGPLv3** 开源许可（闭源商业使用需遵守许可或另行取得授权）
 
 ## 快速开始
 
+**环境**：Go **1.24.x**、Node **≥ 22（LTS）**、[pnpm](https://pnpm.io/) **9.x**（建议 `corepack enable`）。
+
+**网关（Go）**
+
 ```bash
-# 即将推出
+cd services/gateway
+go run ./cmd/api
 ```
 
-具体安装、配置与运行方式将在实现稳定后补充到本文档。
+默认 **http://127.0.0.1:8080**，健康检查：`GET /health`。
+
+**控制台（前端）**
+
+```bash
+cd web/dashboard
+pnpm install
+pnpm dev
+```
+
+更多说明见 `openspec/project.md` 与 `services/gateway/README.md`。
 
 ## 参与贡献
 
