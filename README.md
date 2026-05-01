@@ -1,17 +1,33 @@
+**简体中文** | [English](./README_EN.md)
+
 # NexusRouter
-**Open-Source LLM API Gateway | AGPLv3 Protected | Multi-Provider Smart Routing**
 
-NexusRouter is a high-performance, open-source LLM API gateway that unifies access to all major LLM providers (OpenAI, Anthropic, Qwen, Gemini, etc.) with OpenAI-compatible endpoints, token billing, rate limiting, and automatic failover.
+**开源 LLM API 网关 | AGPLv3 | 多厂商智能路由**
 
-## Core Features
-- ✅ 100% OpenAI API Compatible (drop-in replacement)
-- ✅ Multi-LLM Provider Aggregation & Load Balancing
-- ✅ API Key Management & Quota Control
-- ✅ Token Usage Tracking & Real-time Billing
-- ✅ Rate Limiting & Request Retry
-- ✅ Lightweight, High-Performance (Built with Go & Gin)
-- ✅ AGPLv3 Open-Source (No Commercial Closed-Source Use)
+NexusRouter 是一款高性能的开源 LLM API 网关，通过 **OpenAI 兼容** 接口统一接入主流大模型服务（OpenAI、Anthropic、通义千问、Gemini 等），并提供用量统计、计费、限流与故障自动切换等能力。
 
-## Quick Start
+## 核心特性
+
+- 与 **OpenAI API** 高度兼容，便于现有客户端与 SDK 迁移
+- **多厂商聚合** 与负载均衡
+- **API Key** 管理与配额控制
+- **Token 用量** 追踪与实时计费
+- **限流** 与请求重试
+- 轻量、高性能（规划采用 **Go** 与 **Gin** 等技术栈）
+- **AGPLv3** 开源许可（闭源商业使用需遵守许可或另行取得授权）
+
+## 快速开始
+
 ```bash
-# Coming soon
+# 即将推出
+```
+
+具体安装、配置与运行方式将在实现稳定后补充到本文档。
+
+## 参与贡献
+
+向本仓库提交贡献前，请阅读并签署 **贡献者许可协议（CLA）**。合并到 `main` 分支的 PR 会通过 [CLA Assistant](https://github.com/cla-assistant/cla-assistant) 校验签名；签名文件存放于 `signatures/version1/cla.json`，协议正文见 [NexusRouter CLA 文档](https://github.com/NexusRouter/cla/blob/main/CLA.md)。
+
+## 许可证
+
+本项目采用 [GNU Affero General Public License v3.0](https://www.gnu.org/licenses/agpl-3.0.html)（AGPL-3.0）。使用、修改与分发时请遵守许可证全文。
