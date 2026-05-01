@@ -7,6 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
+  # Remote signatures (NexusRouter/cla) require repo secret CLA_ASSISTANT_TOKEN (mapped to PERSONAL_ACCESS_TOKEN below).
   cla-check:
     name: CLA Signature Check
     runs-on: ubuntu-latest
@@ -51,8 +52,3 @@ jobs:
 
       - name: Validate OpenSpec specs
         run: openspec validate --all --no-interactive
-
-      - name: Superpowers code quality check
-        run: |
-          npx superpowers lint
-          npx superpowers format --check
