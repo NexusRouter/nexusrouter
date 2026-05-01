@@ -21,10 +21,10 @@ jobs:
           remote-organization: NexusRouter
           remote-repository: cla
         env:
-          GITH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PERSONAL_ACCESS_TOKEN: ${{ secrets.CLA_ASSISTANT_TOKEN }}
 
-code-quality:
+  code-quality:
     name: Code & Spec Quality Check
     runs-on: ubuntu-latest
     steps:
