@@ -31,7 +31,7 @@ cd services/gateway
 go run ./cmd/api
 ```
 
-默认 **:8080**，`GET /health`。Wire 重生成见 `services/gateway/README.md`。
+默认 **:8080**，`GET /health`；OpenAPI 3 与 Swagger UI、Chat 代理环境变量见 `services/gateway/README.md`。Wire 重生成见同 README。
 
 **控制台**
 

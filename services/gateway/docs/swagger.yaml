@@ -1,0 +1,94 @@
+basePath: /
+definitions:
+  handler.ChatCompletionRequest:
+    properties:
+      messages:
+        items:
+          $ref: '#/definitions/handler.ChatMessage'
+        type: array
+      model:
+        example: gpt-4o-mini
+        type: string
+      stream:
+        type: boolean
+    type: object
+  handler.ChatCompletionResponse:
+    properties:
+      created:
+        type: integer
+      id:
+        example: chatcmpl-xxx
+        type: string
+      model:
+        type: string
+      object:
+        example: chat.completion
+        type: string
+    type: object
+  handler.ChatMessage:
+    properties:
+      content:
+        example: hello
+        type: string
+      role:
+        example: user
+        type: string
+    type: object
+externalDocs:
+  description: OpenAI API Overview
+  url: https://developers.openai.com/api/reference/overview
+host: localhost:8080
+info:
+  contact: {}
+  description: OpenAI 兼容 Chat Completions 网关。REST 概览与认证约定参见 https://developers.openai.com/api/reference/overview
+  title: NexusRouter Gateway API
+  version: 1.0.0
+paths:
+  /v1/chat/completions:
+    post:
+      consumes:
+      - application/json
+      description: 与 OpenAI Chat Completions 兼容子集；官方概览 https://developers.openai.com/api/reference/overview
+      parameters:
+      - description: 可选，与 Bearer 二选一
+        in: header
+        name: X-API-Key
+        type: string
+      - description: 请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.ChatCompletionRequest'
+      produces:
+      - application/json
+      - text/event-stream
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.ChatCompletionResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Chat Completions
+      tags:
+      - chat
+securityDefinitions:
+  BearerAuth:
+    description: Bearer 令牌，与 OpenAI 一致（见官方概览）。
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
