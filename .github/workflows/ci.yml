@@ -29,8 +29,11 @@ jobs:
       - name: Go vet
         run: go vet ./...
 
+      - name: Verify Swag docs drift
+        run: make docs && git diff --exit-code docs/
+
       - name: Go test
-        run: go test ./... -count=1
+        run: go test ./... -count=1 -cover
 
       - name: Go build API
         run: go build -o /tmp/nexusrouter-gateway ./cmd/api
@@ -59,8 +62,8 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
-      - name: Test
-        run: pnpm run test
+      - name: Test (with coverage)
+        run: pnpm run test:coverage
 
       - name: Build
         run: pnpm run build

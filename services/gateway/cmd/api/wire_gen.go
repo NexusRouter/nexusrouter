@@ -18,7 +18,8 @@ func InitializeApp() (*app.Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	engine := provider.ProvideEngine(logger)
+	config := provider.ProvideConfig()
+	engine := provider.ProvideEngine(logger, config)
 	application := app.NewApplication(logger, engine)
 	return application, nil
 }
