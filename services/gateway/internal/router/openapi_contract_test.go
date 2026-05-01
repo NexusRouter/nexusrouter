@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/config"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/keystore"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -24,7 +25,9 @@ func TestOpenAPI_Swagger_Contract(t *testing.T) {
 		EnableSwaggerUI: true,
 		GatewayAPIKeys:  []string{"test-key"},
 	}
-	Register(e, Deps{Config: cfg, Log: zap.NewNop()})
+	ks, err := keystore.New(cfg, zap.NewNop())
+	require.NoError(t, err)
+	Register(e, Deps{Config: cfg, Log: zap.NewNop(), KeyStore: ks})
 
 	t.Run("GET /openapi.yaml 200 且 openapi 3.0", func(t *testing.T) {
 		rec := httptest.NewRecorder()
@@ -96,6 +99,21 @@ func TestOpenAPI_Swagger_Contract(t *testing.T) {
 		html := rec.Body.String()
 		require.True(t, strings.Contains(html, "url:") || strings.Contains(html, "configUrl"),
 			"Swagger UI 应引用 spec URL")
+	})
+
+	t.Run("paths 含 /health GET", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/openapi.yaml", nil)
+		e.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code)
+		var root map[string]any
+		require.NoError(t, yaml.Unmarshal(rec.Body.Bytes(), &root))
+		paths, ok := root["paths"].(map[string]any)
+		require.True(t, ok)
+		h, ok := paths["/health"].(map[string]any)
+		require.True(t, ok)
+		_, ok = h["get"].(map[string]any)
+		require.True(t, ok)
 	})
 
 	t.Run("GET /openapi.json 合法", func(t *testing.T) {

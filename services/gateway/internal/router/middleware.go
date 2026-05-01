@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"runtime/debug"
 
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/handler"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -18,14 +19,14 @@ func randomID() string {
 	return hex.EncodeToString(b)
 }
 
-// RequestID 注入请求 ID，便于日志关联。
+// RequestID 注入请求 ID，便于日志关联；响应头始终携带与 body 一致的 X-Request-ID。
 func RequestID() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		rid := c.GetHeader(headerRequestID)
 		if rid == "" {
 			rid = randomID()
-			c.Writer.Header().Set(headerRequestID, rid)
 		}
+		c.Writer.Header().Set(headerRequestID, rid)
 		c.Set("request_id", rid)
 		c.Next()
 	}
@@ -41,17 +42,16 @@ func ZapRecovery(log *zap.Logger) gin.HandlerFunc {
 					zap.String("request_id", c.GetString("request_id")),
 					zap.String("stack", string(debug.Stack())),
 				)
-				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-					"code":    "INTERNAL_ERROR",
-					"message": "服务器内部错误",
-				})
+				if !c.Writer.Written() {
+					handler.WriteGatewayError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "服务器内部错误")
+				}
 			}
 		}()
 		c.Next()
 	}
 }
 
-// ErrorJSON 将 handler 中 c.Error 链上的最后一个错误转为 JSON（骨架）。
+// ErrorJSON 将 handler 中 c.Error 链上的最后一个错误转为 JSON。
 func ErrorJSON(log *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
@@ -67,9 +67,6 @@ func ErrorJSON(log *zap.Logger) gin.HandlerFunc {
 		if c.Writer.Written() {
 			return
 		}
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    "REQUEST_ERROR",
-			"message": err.Error(),
-		})
+		handler.WriteGatewayError(c, http.StatusBadRequest, "REQUEST_ERROR", err.Error())
 	}
 }

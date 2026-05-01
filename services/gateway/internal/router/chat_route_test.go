@@ -24,7 +24,8 @@ func TestRegister_ChatCompletions_MethodNotAllowed(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/v1/chat/completions", nil)
 	e.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusMethodNotAllowed, rec.Code)
-	var body map[string]string
+	var body map[string]any
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	require.Equal(t, "METHOD_NOT_ALLOWED", body["code"])
+	require.NotEmpty(t, body["request_id"])
 }
