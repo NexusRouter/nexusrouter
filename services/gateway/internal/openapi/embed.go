@@ -13,6 +13,7 @@ import (
 )
 
 // openapi.yaml 由 make docs（swag → swagger2openapi）生成，勿手改；单一事实来源为 Go 内 swag 注释。
+//
 //go:embed openapi.yaml
 var specYAML []byte
 
