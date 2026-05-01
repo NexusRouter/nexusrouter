@@ -7,18 +7,23 @@ import (
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/handler"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/keystore"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/router"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/runtime"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
 // ProvideEngine 构造 Gin 引擎并注册路由与中间件。
-func ProvideEngine(log *zap.Logger, cfg *config.Config, ks *keystore.Store) *gin.Engine {
+// 中间件顺序：CORS（含 OPTIONS）→ RequestID → ZapRecovery → ErrorJSON → per-IP 限流（鉴权前）→
+// 业务路由内 Chat 链：GatewayAuth → per-Key 限流 → ChatProxy。
+func ProvideEngine(log *zap.Logger, cfg *config.Config, ks *keystore.Store, rt *runtime.Store) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	e := gin.New()
+	e.Use(DynamicCORS(rt))
 	e.Use(router.RequestID())
 	e.Use(router.ZapRecovery(log))
 	e.Use(router.ErrorJSON(log))
-	router.Register(e, router.Deps{Config: cfg, Log: log, KeyStore: ks})
+	e.Use(handler.IPRateLimit(rt, log))
+	router.Register(e, router.Deps{Config: cfg, Log: log, KeyStore: ks, Runtime: rt})
 	e.NoRoute(func(c *gin.Context) {
 		handler.WriteGatewayError(c, http.StatusNotFound, "NOT_FOUND", "路由不存在")
 	})

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/config"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/runtime"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,9 +18,13 @@ import (
 func TestRegister_Health_OK(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
+	cfg := &config.Config{EnableSwaggerUI: false}
+	rt, err := runtime.NewStore(cfg)
+	require.NoError(t, err)
 	Register(r, Deps{
-		Config: &config.Config{EnableSwaggerUI: false},
-		Log:    zap.NewNop(),
+		Config:  cfg,
+		Log:     zap.NewNop(),
+		Runtime: rt,
 	})
 
 	rec := httptest.NewRecorder()

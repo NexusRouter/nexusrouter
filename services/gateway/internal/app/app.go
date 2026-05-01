@@ -5,6 +5,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/keystore"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/runtime"
 	"github.com/gin-gonic/gin"
 )
 
@@ -13,17 +14,21 @@ type Application struct {
 	Log      *zap.Logger
 	Engine   *gin.Engine
 	KeyStore *keystore.Store
+	Runtime  *runtime.Store
 }
 
 // NewApplication 由 Wire 注入构造。
-func NewApplication(log *zap.Logger, engine *gin.Engine, ks *keystore.Store) *Application {
-	return &Application{Log: log, Engine: engine, KeyStore: ks}
+func NewApplication(log *zap.Logger, engine *gin.Engine, ks *keystore.Store, rt *runtime.Store) *Application {
+	return &Application{Log: log, Engine: engine, KeyStore: ks, Runtime: rt}
 }
 
-// Run 启动 HTTP 服务，默认监听 :8080；若密钥库基于文件则注册 SIGHUP 热加载（非 Windows）。
+// Run 启动 HTTP 服务，默认监听 :8080；若密钥库或网关配置基于文件则注册 SIGHUP 热加载（非 Windows）。
 func (a *Application) Run() error {
 	if a.KeyStore != nil {
 		a.KeyStore.ListenSIGHUP(a.Log)
+	}
+	if a.Runtime != nil {
+		a.Runtime.ListenSIGHUP(a.Log)
 	}
 	return a.Engine.Run(":8080")
 }

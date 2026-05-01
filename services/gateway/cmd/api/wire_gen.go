@@ -11,6 +11,10 @@ import (
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/provider"
 )
 
+import (
+	_ "github.com/NexusRouter/nexusrouter/services/gateway/docs"
+)
+
 // Injectors from wire.go:
 
 func InitializeApp() (*app.Application, error) {
@@ -19,11 +23,15 @@ func InitializeApp() (*app.Application, error) {
 		return nil, err
 	}
 	config := provider.ProvideConfig()
-	keyStore, err := provider.ProvideKeyStore(config, logger)
+	store, err := provider.ProvideKeyStore(config, logger)
 	if err != nil {
 		return nil, err
 	}
-	engine := provider.ProvideEngine(logger, config, keyStore)
-	application := app.NewApplication(logger, engine, keyStore)
+	runtimeStore, err := provider.ProvideRuntimeStore(config)
+	if err != nil {
+		return nil, err
+	}
+	engine := provider.ProvideEngine(logger, config, store, runtimeStore)
+	application := app.NewApplication(logger, engine, store, runtimeStore)
 	return application, nil
 }

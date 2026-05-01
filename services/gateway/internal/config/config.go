@@ -28,6 +28,8 @@ type Config struct {
 	ForwardClientAuthorization bool
 	// EnableSwaggerUI 是否暴露 /swagger/* 与相关静态资源。
 	EnableSwaggerUI bool
+	// GatewayConfigFile 可选 gateway.yaml 路径；非空时与 env 合并并由运行时热加载。
+	GatewayConfigFile string
 }
 
 // EffectiveUpstreamBases 返回非空的上游基址列表（多上游优先，否则回退单键）。
@@ -84,6 +86,7 @@ func Load() *Config {
 		UpstreamAPIKey:             strings.TrimSpace(v.GetString("NEXUSROUTER_UPSTREAM_API_KEY")),
 		ForwardClientAuthorization: fwd,
 		EnableSwaggerUI:            swagger,
+		GatewayConfigFile:          strings.TrimSpace(v.GetString("NEXUSROUTER_GATEWAY_CONFIG_FILE")),
 	}
 }
 
