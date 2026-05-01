@@ -13,6 +13,7 @@ import (
 
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/config"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/keystore"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/runtime"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,6 +25,13 @@ func testKeyStore(t *testing.T, keys ...string) *keystore.Store {
 	s, err := keystore.New(&config.Config{GatewayAPIKeys: keys}, zap.NewNop())
 	require.NoError(t, err)
 	return s
+}
+
+func testRuntimeStore(t *testing.T, cfg *config.Config) *runtime.Store {
+	t.Helper()
+	rt, err := runtime.NewStore(cfg)
+	require.NoError(t, err)
+	return rt
 }
 
 func TestGatewayAuth_XAPIKey(t *testing.T) {
@@ -72,7 +80,7 @@ func TestChatProxy_Upstream200_JSON(t *testing.T) {
 		UpstreamTimeout: 5 * time.Second,
 	}
 	r := gin.New()
-	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw")), ChatProxy(cfg, zap.NewNop()))
+	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw")), ChatProxy(cfg, zap.NewNop(), testRuntimeStore(t, cfg)))
 
 	body := `{"model":"m","messages":[{"role":"user","content":"hi"}]}`
 	rec := httptest.NewRecorder()
@@ -100,7 +108,7 @@ func TestChatProxy_Upstream4xx_Passthrough(t *testing.T) {
 		UpstreamTimeout: 5 * time.Second,
 	}
 	r := gin.New()
-	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw")), ChatProxy(cfg, zap.NewNop()))
+	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw")), ChatProxy(cfg, zap.NewNop(), testRuntimeStore(t, cfg)))
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewBufferString(`{"model":"m","messages":[]}`))
@@ -120,7 +128,7 @@ func TestChatProxy_UpstreamUnreachable(t *testing.T) {
 		UpstreamTimeout: 200 * time.Millisecond,
 	}
 	r := gin.New()
-	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw")), ChatProxy(cfg, zap.NewNop()))
+	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw")), ChatProxy(cfg, zap.NewNop(), testRuntimeStore(t, cfg)))
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewBufferString(`{"model":"m","messages":[]}`))
@@ -157,7 +165,8 @@ func TestChatProxy_RoundRobinTwoUpstreams(t *testing.T) {
 		UpstreamTimeout:  5 * time.Second,
 	}
 	r := gin.New()
-	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw")), ChatProxy(cfg, zap.NewNop()))
+	rt := testRuntimeStore(t, cfg)
+	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw")), ChatProxy(cfg, zap.NewNop(), rt))
 
 	for i := 0; i < 4; i++ {
 		rec := httptest.NewRecorder()
@@ -188,7 +197,7 @@ func TestChatProxy_ForwardsCustomHeader(t *testing.T) {
 		UpstreamTimeout: 5 * time.Second,
 	}
 	r := gin.New()
-	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw")), ChatProxy(cfg, zap.NewNop()))
+	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw")), ChatProxy(cfg, zap.NewNop(), testRuntimeStore(t, cfg)))
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"m","messages":[]}`))

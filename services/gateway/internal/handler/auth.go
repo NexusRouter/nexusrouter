@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/keystore"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/runtime"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,12 +23,14 @@ func GatewayAuth(ks *keystore.Store) gin.HandlerFunc {
 		if len(authz) >= 7 && strings.EqualFold(authz[:7], "bearer ") {
 			tok := strings.TrimSpace(authz[7:])
 			if ks.ValidateBearer(tok) {
+				c.Set("rate_limit_key", runtime.FingerprintBearer(tok))
 				c.Next()
 				return
 			}
 		}
 
 		if k := strings.TrimSpace(c.GetHeader(headerAPIKey)); k != "" && ks.ValidateXAPIKey(k) {
+			c.Set("rate_limit_key", runtime.FingerprintBearer(k))
 			c.Next()
 			return
 		}

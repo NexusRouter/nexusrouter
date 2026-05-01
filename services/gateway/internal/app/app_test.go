@@ -11,7 +11,7 @@ import (
 func TestNewApplication_FieldsSet(t *testing.T) {
 	log := zap.NewNop()
 	eng := gin.New()
-	a := NewApplication(log, eng, nil)
+	a := NewApplication(log, eng, nil, nil)
 	assert.Same(t, log, a.Log)
 	assert.Same(t, eng, a.Engine)
 }

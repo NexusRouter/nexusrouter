@@ -22,6 +22,37 @@ paths:
       summary: 健康检查
       tags:
         - system
+  /internal/reload-config:
+    post:
+      description: 需携带与 NEXUSROUTER_ADMIN_RELOAD_TOKEN 相同的 Bearer；失败时保留旧快照。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+      summary: 热加载网关配置文件
+      tags:
+        - admin
   /internal/reload-keys:
     post:
       description: 需携带与 NEXUSROUTER_ADMIN_RELOAD_TOKEN 相同的 Bearer 管理令牌；成功时重新读取密钥 JSON。
@@ -51,6 +82,44 @@ paths:
                   type: string
                 type: object
       summary: 热加载 API 密钥文件
+      tags:
+        - admin
+  /internal/upstream/active:
+    put:
+      description: 传空字符串可解除 pin；需 Bearer 管理令牌。
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/handler.SetActiveUpstreamBody"
+        description: active_upstream_id 可为空表示解除 pin
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+      summary: 固定当前上游 id
       tags:
         - admin
   /v1/chat/completions:
@@ -169,5 +238,10 @@ components:
           type: string
         version:
           example: dev
+          type: string
+      type: object
+    handler.SetActiveUpstreamBody:
+      properties:
+        active_upstream_id:
           type: string
       type: object

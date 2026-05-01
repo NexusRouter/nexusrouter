@@ -1,0 +1,45 @@
+# NexusRouter 网关聚合配置（可选）。通过 NEXUSROUTER_GATEWAY_CONFIG_FILE 指向本文件。
+# 未设置该环境变量时，网关仅使用 NEXUSROUTER_* 环境变量（与此前行为一致）。
+
+routing:
+  # weighted_random | round_robin
+  strategy: weighted_random
+  default_upstream_id: a
+  # 非空时固定命中该 id，直至清空或热重载
+  active_upstream_id: ""
+
+upstreams:
+  - id: a
+    base_url: https://api.openai.com
+    weight: 10
+  - id: b
+    base_url: https://backup.example.com
+    weight: 5
+
+cors:
+  enabled: false
+  allow_origins:
+    - http://localhost:5173
+  allow_methods:
+    - GET
+    - POST
+    - OPTIONS
+  allow_headers:
+    - Authorization
+    - Content-Type
+    - X-Request-ID
+  max_age_seconds: 86400
+
+rate_limit:
+  # 0 表示关闭该维度
+  rps_per_ip: 0
+  rps_per_key: 0
+
+proxy_access_log:
+  enabled: false
+  # 文件路径；空则仅 stdout（若实现 stdout 分支）
+  path: /var/log/nexusrouter/access.log
+  # info | error
+  level: info
+  max_size_mb: 100
+  max_backups: 3

@@ -35,6 +35,47 @@ const docTemplate = `{
                 }
             }
         },
+        "/internal/reload-config": {
+            "post": {
+                "description": "需携带与 NEXUSROUTER_ADMIN_RELOAD_TOKEN 相同的 Bearer；失败时保留旧快照。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "热加载网关配置文件",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/internal/reload-keys": {
             "post": {
                 "description": "需携带与 NEXUSROUTER_ADMIN_RELOAD_TOKEN 相同的 Bearer 管理令牌；成功时重新读取密钥 JSON。",
@@ -66,6 +107,61 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/internal/upstream/active": {
+            "put": {
+                "description": "传空字符串可解除 pin；需 Bearer 管理令牌。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "固定当前上游 id",
+                "parameters": [
+                    {
+                        "description": "active_upstream_id 可为空表示解除 pin",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.SetActiveUpstreamBody"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -217,6 +313,14 @@ const docTemplate = `{
                 "version": {
                     "type": "string",
                     "example": "dev"
+                }
+            }
+        },
+        "handler.SetActiveUpstreamBody": {
+            "type": "object",
+            "properties": {
+                "active_upstream_id": {
+                    "type": "string"
                 }
             }
         }
