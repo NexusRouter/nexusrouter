@@ -22,7 +22,9 @@ func TestInitializeApp_HealthEndpoint(t *testing.T) {
 	app.Engine.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	var body map[string]string
+	var body map[string]any
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	assert.Equal(t, "ok", body["status"])
+	assert.NotEmpty(t, body["version"])
+	assert.NotEmpty(t, body["server_time"])
 }

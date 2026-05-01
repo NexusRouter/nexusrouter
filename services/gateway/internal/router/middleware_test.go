@@ -1,11 +1,13 @@
 package router
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/handler"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,6 +45,7 @@ func TestRequestID_PreservesClientHeader(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "client-rid-1", rec.Body.String())
+	assert.Equal(t, "client-rid-1", rec.Header().Get(headerRequestID))
 }
 
 func TestZapRecovery_ReturnsJSONOnPanic(t *testing.T) {
@@ -60,6 +63,10 @@ func TestZapRecovery_ReturnsJSONOnPanic(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, rec.Code)
 	assert.Contains(t, rec.Body.String(), "INTERNAL_ERROR")
 	assert.Contains(t, rec.Body.String(), "服务器内部错误")
+	var panicBody map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &panicBody))
+	assert.NotEmpty(t, panicBody["request_id"])
+	assert.Equal(t, panicBody["request_id"], rec.Header().Get(headerRequestID))
 }
 
 func TestErrorJSON_HandlerError(t *testing.T) {
@@ -78,4 +85,28 @@ func TestErrorJSON_HandlerError(t *testing.T) {
 
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	assert.Contains(t, rec.Body.String(), "REQUEST_ERROR")
+	var errBody map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errBody))
+	assert.NotEmpty(t, errBody["request_id"])
+	assert.Equal(t, errBody["request_id"], rec.Header().Get(headerRequestID))
+}
+
+func TestWriteGatewayError_ClientRequestIDPreserved(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(RequestID())
+	r.GET("/x", func(c *gin.Context) {
+		handler.WriteGatewayError(c, http.StatusTeapot, "TEAPOT", "no")
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	req.Header.Set(headerRequestID, "rid-xyz")
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusTeapot, rec.Code)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.Equal(t, "rid-xyz", body["request_id"])
+	assert.Equal(t, "rid-xyz", rec.Header().Get(headerRequestID))
 }

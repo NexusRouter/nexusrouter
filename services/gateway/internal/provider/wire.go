@@ -6,5 +6,6 @@ import "github.com/google/wire"
 var Set = wire.NewSet(
 	ProvideLogger,
 	ProvideConfig,
+	ProvideKeyStore,
 	ProvideEngine,
 )

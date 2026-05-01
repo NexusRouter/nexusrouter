@@ -23,6 +23,11 @@ jobs:
           go-version-file: services/gateway/go.mod
           cache-dependency-path: services/gateway/go.sum
 
+      - name: Set up Node.js (swagger2openapi → OAS3)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Go fmt
         run: test -z "$(gofmt -l .)"
 
@@ -30,7 +35,7 @@ jobs:
         run: go vet ./...
 
       - name: Verify Swag docs drift
-        run: make docs && git diff --exit-code docs/
+        run: make docs && git diff --exit-code docs/ internal/openapi/openapi.yaml
 
       - name: Go test
         run: go test ./... -count=1 -cover
