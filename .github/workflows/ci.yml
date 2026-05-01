@@ -31,6 +31,64 @@ jobs:
           # Needs repo scope to write signatures into NexusRouter/cla (and comment on PRs if default token is insufficient).
           PERSONAL_ACCESS_TOKEN: ${{ secrets.CLA_ASSISTANT_TOKEN }}
 
+  gateway-go:
+    name: Gateway (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/gateway
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: services/gateway/go.mod
+          cache-dependency-path: services/gateway/go.sum
+
+      - name: Go fmt
+        run: test -z "$(gofmt -l .)"
+
+      - name: Go vet
+        run: go vet ./...
+
+      - name: Go test
+        run: go test ./... -count=1
+
+      - name: Go build API
+        run: go build -o /tmp/nexusrouter-gateway ./cmd/api
+
+  dashboard-frontend:
+    name: Dashboard (pnpm)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web/dashboard
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@9.15.9 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Test
+        run: pnpm run test
+
+      - name: Build
+        run: pnpm run build
+
   code-quality:
     name: Code & Spec Quality Check
     runs-on: ubuntu-latest
@@ -38,14 +96,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm install
+          node-version: '22'
 
       - name: Install OpenSpec CLI
         run: npm install -g @fission-ai/openspec@latest
