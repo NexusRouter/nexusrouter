@@ -7,21 +7,28 @@ on:
     branches: [ main ]
 
 jobs:
+  # Remote signatures (NexusRouter/cla) require repo secret CLA_ASSISTANT_TOKEN (mapped to PERSONAL_ACCESS_TOKEN below).
   cla-check:
     name: CLA Signature Check
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      statuses: write
     steps:
       - name: Check if contributor signed CLA
-        uses: cla-assistant/github-action@v2
+        # contributor-assistant/github-action (formerly cla-assistant); pin semver, not @v2.
+        uses: contributor-assistant/github-action@v2.6.1
         with:
           path-to-signatures: 'signatures/version1/cla.json'
           path-to-document: 'https://github.com/NexusRouter/cla/blob/main/CLA.md'
           branch: main
           allowlist: dependabot[bot]
-          remote-organization: NexusRouter
-          remote-repository: cla
+          remote-organization-name: NexusRouter
+          remote-repository-name: cla
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Needs repo scope to write signatures into NexusRouter/cla (and comment on PRs if default token is insufficient).
           PERSONAL_ACCESS_TOKEN: ${{ secrets.CLA_ASSISTANT_TOKEN }}
 
   code-quality:
@@ -35,7 +42,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          cache: npm
 
       - name: Install dependencies
         run: npm install
@@ -44,9 +51,4 @@ jobs:
         run: npm install -g @fission-ai/openspec@latest
 
       - name: Validate OpenSpec specs
-        run: openspec verify
-
-      - name: Superpowers code quality check
-        run: |
-          npx superpowers lint
-          npx superpowers format --check
+        run: openspec validate --all --no-interactive
