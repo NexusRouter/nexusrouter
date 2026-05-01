@@ -10,7 +10,7 @@ require (
 	github.com/google/wire v0.6.0
 	github.com/redis/go-redis/v9 v9.7.0
 	github.com/spf13/viper v1.19.0
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	github.com/swaggo/swag v1.16.4
 	go.uber.org/zap v1.27.0
 	gorm.io/driver/postgres v1.5.9
