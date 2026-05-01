@@ -11,8 +11,8 @@ package handler
 //	@Param			X-API-Key		header		string					false	"可选，与 Bearer 二选一"
 //	@Param			body			body		ChatCompletionRequest	true	"请求体"
 //	@Success		200				{object}	ChatCompletionResponse
-//	@Failure		401				{object}	map[string]string
-//	@Failure		502				{object}	map[string]string
+//	@Failure		401				{object}	GatewayErrorBody
+//	@Failure		502				{object}	GatewayErrorBody
 //	@Security		BearerAuth
 //	@Router			/v1/chat/completions [post]
 func CreateChatCompletionDoc() {

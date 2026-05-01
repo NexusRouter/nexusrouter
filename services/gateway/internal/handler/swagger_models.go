@@ -13,6 +13,13 @@ type ChatMessage struct {
 	Content string `json:"content" example:"hello"`
 }
 
+// GatewayErrorBody 网关自产错误 JSON（与运行时 WriteGatewayError 一致）。
+type GatewayErrorBody struct {
+	Code       string `json:"code" example:"UNAUTHORIZED"`
+	Message    string `json:"message" example:"凭证无效或缺失"`
+	RequestID  string `json:"request_id" example:"a1b2c3d4e5f6g7h8"`
+}
+
 // ChatCompletionResponse 非流式成功响应（文档用子集）。
 type ChatCompletionResponse struct {
 	ID      string `json:"id" example:"chatcmpl-xxx"`

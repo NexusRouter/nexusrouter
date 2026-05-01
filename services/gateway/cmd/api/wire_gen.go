@@ -19,7 +19,11 @@ func InitializeApp() (*app.Application, error) {
 		return nil, err
 	}
 	config := provider.ProvideConfig()
-	engine := provider.ProvideEngine(logger, config)
-	application := app.NewApplication(logger, engine)
+	keyStore, err := provider.ProvideKeyStore(config, logger)
+	if err != nil {
+		return nil, err
+	}
+	engine := provider.ProvideEngine(logger, config, keyStore)
+	application := app.NewApplication(logger, engine, keyStore)
 	return application, nil
 }

@@ -4,48 +4,34 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/NexusRouter/nexusrouter/services/gateway/internal/config"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/keystore"
 	"github.com/gin-gonic/gin"
 )
 
 const headerAPIKey = "X-API-Key"
 
-// GatewayAuth 校验网关层凭证（Bearer 或 X-API-Key），与配置中 NEXUSROUTER_GATEWAY_API_KEYS 之一匹配。
-func GatewayAuth(cfg *config.Config) gin.HandlerFunc {
+// GatewayAuth 校验网关层凭证：优先 Authorization Bearer；可选兼容 X-API-Key（deprecated，见 README）。
+func GatewayAuth(ks *keystore.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if len(cfg.GatewayAPIKeys) == 0 {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"code":    "UNAUTHORIZED",
-				"message": "网关未配置允许的 API 密钥",
-			})
+		if ks == nil || !ks.HasKeys() {
+			WriteGatewayError(c, http.StatusUnauthorized, "UNAUTHORIZED", "网关未配置允许的 API 密钥")
 			return
 		}
-		if matchGatewayAuth(c, cfg.GatewayAPIKeys) {
+
+		authz := strings.TrimSpace(c.GetHeader("Authorization"))
+		if len(authz) >= 7 && strings.EqualFold(authz[:7], "bearer ") {
+			tok := strings.TrimSpace(authz[7:])
+			if ks.ValidateBearer(tok) {
+				c.Next()
+				return
+			}
+		}
+
+		if k := strings.TrimSpace(c.GetHeader(headerAPIKey)); k != "" && ks.ValidateXAPIKey(k) {
 			c.Next()
 			return
 		}
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-			"code":    "UNAUTHORIZED",
-			"message": "凭证无效或缺失",
-		})
-	}
-}
 
-func matchGatewayAuth(c *gin.Context, keys []string) bool {
-	if h := c.GetHeader("Authorization"); strings.HasPrefix(strings.ToLower(h), "bearer ") {
-		token := strings.TrimSpace(h[7:])
-		for _, k := range keys {
-			if k == token {
-				return true
-			}
-		}
+		WriteGatewayError(c, http.StatusUnauthorized, "UNAUTHORIZED", "凭证无效或缺失")
 	}
-	if k := c.GetHeader(headerAPIKey); k != "" {
-		for _, want := range keys {
-			if want == k {
-				return true
-			}
-		}
-	}
-	return false
 }

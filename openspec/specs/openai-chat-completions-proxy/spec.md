@@ -18,25 +18,30 @@ NexusRouter 网关对 **OpenAI 兼容 Chat Completions** 的反向代理、鉴�
 #### Scenario: 非 POST 拒绝
 
 - **WHEN** 客户端对 `/v1/chat/completions` 使用 **GET/PUT/DELETE** 等非常用方法（除 **OPTIONS** 若启用 CORS 预检外）
-- **THEN** 响应状态码为 **405** 或 **404**（实现择一但 MUST 在 `design.md`/代码注释中固定），且 body 为网关统一 JSON 错误（非上游体）
+- **THEN** 响应状态码为 **405**，且 body 为网关统一 JSON 错误（非上游体）
 
 ### Requirement: 上游目标可配置
 
-网关 MUST 通过配置（Viper 键或环境变量，具体键名以实现为准但 MUST 文档化）指定上游 **基址 URL**（含 scheme 与 host，可选 path 前缀）；对 **POST `/v1/chat/completions`** 的转发目标 MUST 等价于「该基址与 OpenAI 标准路径解析后的绝对 URL」。
+网关 MUST 通过配置支持 **一个或多个** 上游 **基址 URL**（每项含 scheme 与 host，可选 path 前缀）；对 **POST `/v1/chat/completions`** 的转发目标 MUST 为：按 **`design.md`** 固定的选择策略从列表中选出某一基址后，与 OpenAI 标准路径 **`/v1/chat/completions`** 按 **RFC 3986** 合并得到的绝对 URL。配置 MAY 同时保留单一环境变量形式以兼容旧部署；**优先级与键名 MUST 在 `design.md` 与 README 文档化**。
+
+#### Scenario: 多上游轮询
+
+- **WHEN** 配置中至少存在 **两个** 合法上游基址且策略为轮询
+- **THEN** 连续多次成功的 **`POST /v1/chat/completions`** 请求所命中的上游主机（不含 path 细节时至少 host）MUST 在统计意义上轮换（测试可用固定种子或钩子验证索引递增语义）
 
 #### Scenario: 配置缺失时拒绝启动或拒绝转发
 
-- **WHEN** 进程启动时上游基址未设置或非法
+- **WHEN** 进程启动时 **所有** 上游基址均未设置或均非法
 - **THEN** MUST 启动失败 **或** 对该路径返回 **503** 统一 JSON（二者择一并在实现中一致）；禁止向空 host 发起转发
 
 #### Scenario: 合法配置下转发
 
-- **WHEN** 上游基址为 `https://api.example.com` 且客户端请求 **POST `/v1/chat/completions`**
+- **WHEN** 所选上游基址为 `https://api.example.com` 且客户端请求 **POST `/v1/chat/completions`**
 - **THEN** 上游收到的请求 URL MUST 指向 `https://api.example.com/v1/chat/completions`（若基址带 path 前缀，MUST 与 RFC 3986 路径合并规则一致）
 
 ### Requirement: 请求头与请求体透传
 
-在通过鉴权后，网关 MUST 将客户端请求体 **原样字节流** 转发至上游（不解析、不修改 JSON 结构）。网关 MUST 转发与 Chat Completions 相关的常见语义头，至少包括：**`Content-Type`**、**`Accept`**、**`User-Agent`**（若客户端提供）；其他头 MAY 按 `design.md` 中的 hop-by-hop 剔除规则处理。
+在通过鉴权后，网关 MUST 将客户端请求体 **原样字节流** 转发至上游（不解析、不修改 JSON 结构）。网关 MUST **复制**客户端请求头至上游请求，**但** MUST 剔除 **`design.md`** 所列 **hop-by-hop** 头及代理层重算头；**`Host`** MUST 设置为目标上游主机；除该清单外 **不得** 无故丢弃业务语义头（例如 **`OpenAI-Organization`**、**`Idempotency-Key`**、**`X-Request-ID`** 等，若客户端提供则保留，除非与安全策略冲突并在 `design.md` 明示）。
 
 #### Scenario: JSON 体原样到达上游
 
@@ -46,7 +51,12 @@ NexusRouter 网关对 **OpenAI 兼容 Chat Completions** 的反向代理、鉴�
 #### Scenario: 流式请求体声明透传
 
 - **WHEN** 客户端 `Accept: text/event-stream` 且 body 仍为合法 chat completions JSON
-- **THEN** 上游收到的 `Accept` 与 body 与客户端一致（除非 `design.md` 声明剥离特定安全头）
+- **THEN** 上游收到的 `Accept` 与 body 与客户端一致（hop-by-hop 及 `design.md` 声明的安全例外除外）
+
+#### Scenario: 自定义业务头保留
+
+- **WHEN** 客户端在剔除名单之外携带非常见但合法的业务请求头 **`X-Custom-Client: foo`**
+- **THEN** 上游请求 MUST 包含 **`X-Custom-Client: foo`**（大小写按 Go `http.Header` 规范）
 
 ### Requirement: 响应原样回包
 
@@ -69,26 +79,26 @@ NexusRouter 网关对 **OpenAI 兼容 Chat Completions** 的反向代理、鉴�
 
 ### Requirement: 内置接口鉴权拦截
 
-在转发前，网关 MUST 对 **POST `/v1/chat/completions`** 执行鉴权：至少支持 **`Authorization: Bearer <token>`** 与/或 **`X-API-Key`**（具体支持的头集合以实现为准，MUST 文档化），并与配置中的允许值比对；未通过 MUST **不调用上游**。
+在转发前，网关 MUST 对 **POST `/v1/chat/completions`** 执行鉴权，且鉴权行为 MUST 满足 **`api-key-management`** 规范：**MUST** 支持并优先记录 **`Authorization: Bearer <API_KEY>`** 为网关入口凭证；**`X-API-Key`** MAY 继续支持以实现向后兼容，若支持 MUST 在 README 明示为可选。未通过鉴权 MUST **不调用上游**。
 
 #### Scenario: 缺少凭证
 
-- **WHEN** 请求未携带配置的鉴权凭证
-- **THEN** 响应为 **401** 且统一 JSON 错误，且上游无对应请求
+- **WHEN** 请求未携带满足 Bearer 形式的网关凭证（且未命中可选的 `X-API-Key` 兼容路径，若启用）
+- **THEN** 响应为 **401** 且统一 JSON 错误（含 **`request_id`**），且上游无对应请求
 
 #### Scenario: 凭证错误
 
-- **WHEN** 凭证与配置不一致
-- **THEN** 响应为 **401** 且统一 JSON 错误
+- **WHEN** 凭证与已加载密钥集合不一致或记录已禁用/过期
+- **THEN** 响应为 **401** 且统一 JSON 错误，且上游无对应请求
 
 #### Scenario: 凭证正确
 
-- **WHEN** 凭证正确
+- **WHEN** 凭证正确且未过期且未禁用
 - **THEN** 请求进入反向代理转发流程
 
 ### Requirement: 异常捕获与统一错误响应
 
-网关 MUST 捕获：上游连接失败、TLS 错误、超时、`ReverseProxy` 内部错误、以及处理链中的 **panic**，并返回 **JSON** 错误体（结构符合 `gateway-backend` 统一错误约定：含人类可读 `message` 与机器可读 `code` 或等价字段）；同时 MUST 写入 **Zap** 日志（含错误类型，不含完整客户端密钥）。
+网关 MUST 捕获：上游连接失败、TLS 错误、超时、`ReverseProxy` 内部错误、以及处理链中的 **panic**，并返回 **JSON** 错误体；该 JSON MUST 符合 **`gateway-backend`** 对网关错误体的字段约定（至少含 **`code`**、**`message`**、**`request_id`**，且 **`request_id`** 与 **`X-Request-ID`** 响应头一致）；同时 MUST 写入 **Zap** 日志（含错误类型与 **`request_id`**，不含完整客户端密钥）。
 
 #### Scenario: 上游不可达
 
@@ -145,6 +155,15 @@ NexusRouter 网关对 **OpenAI 兼容 Chat Completions** 的反向代理、鉴�
 
 - **WHEN** 对文档文本执行字符串检查（测试或 CI）
 - **THEN** 包含上述 **https** 完整 URL 子串
+
+### Requirement: OpenAPI 覆盖健康检查
+
+OpenAPI 文档 MUST 在 **`paths`** 下描述 **`/health`** 的 **`get`** 操作，并声明 **200** 响应中 **`status`**、**`version`**、**`server_time`** 字段（类型与示例与实现一致）。
+
+#### Scenario: Swagger UI 可发现健康接口
+
+- **WHEN** 审查者打开 Swagger UI 并检索 **`/health`**
+- **THEN** 可见 **GET** 操作且可发起 **Try it out** 请求
 
 ### Requirement: swaggo/swag 自动生成
 

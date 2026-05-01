@@ -2,25 +2,34 @@ package handler
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/config"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/keystore"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
+func testKeyStore(t *testing.T, keys ...string) *keystore.Store {
+	t.Helper()
+	s, err := keystore.New(&config.Config{GatewayAPIKeys: keys}, zap.NewNop())
+	require.NoError(t, err)
+	return s
+}
+
 func TestGatewayAuth_XAPIKey(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	cfg := &config.Config{GatewayAPIKeys: []string{"gw-secret"}}
 	r := gin.New()
-	r.POST("/v1/chat/completions", GatewayAuth(cfg), func(c *gin.Context) {
+	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "gw-secret")), func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
 	rec := httptest.NewRecorder()
@@ -32,9 +41,8 @@ func TestGatewayAuth_XAPIKey(t *testing.T) {
 
 func TestGatewayAuth_Unauthorized(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	cfg := &config.Config{GatewayAPIKeys: []string{"secret"}}
 	r := gin.New()
-	r.POST("/v1/chat/completions", GatewayAuth(cfg), func(c *gin.Context) {
+	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "secret")), func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
 
@@ -64,7 +72,7 @@ func TestChatProxy_Upstream200_JSON(t *testing.T) {
 		UpstreamTimeout: 5 * time.Second,
 	}
 	r := gin.New()
-	r.POST("/v1/chat/completions", GatewayAuth(cfg), ChatProxy(cfg, zap.NewNop()))
+	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw")), ChatProxy(cfg, zap.NewNop()))
 
 	body := `{"model":"m","messages":[{"role":"user","content":"hi"}]}`
 	rec := httptest.NewRecorder()
@@ -92,7 +100,7 @@ func TestChatProxy_Upstream4xx_Passthrough(t *testing.T) {
 		UpstreamTimeout: 5 * time.Second,
 	}
 	r := gin.New()
-	r.POST("/v1/chat/completions", GatewayAuth(cfg), ChatProxy(cfg, zap.NewNop()))
+	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw")), ChatProxy(cfg, zap.NewNop()))
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewBufferString(`{"model":"m","messages":[]}`))
@@ -112,7 +120,7 @@ func TestChatProxy_UpstreamUnreachable(t *testing.T) {
 		UpstreamTimeout: 200 * time.Millisecond,
 	}
 	r := gin.New()
-	r.POST("/v1/chat/completions", GatewayAuth(cfg), ChatProxy(cfg, zap.NewNop()))
+	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw")), ChatProxy(cfg, zap.NewNop()))
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewBufferString(`{"model":"m","messages":[]}`))
@@ -121,4 +129,76 @@ func TestChatProxy_UpstreamUnreachable(t *testing.T) {
 	r.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusBadGateway, rec.Code)
+	var ge GatewayErrorBody
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &ge))
+	require.Equal(t, "BAD_GATEWAY", ge.Code)
+	require.NotEmpty(t, ge.RequestID)
+}
+
+func TestChatProxy_RoundRobinTwoUpstreams(t *testing.T) {
+	var countA, countB atomic.Int32
+	s1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		countA.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"from":"a"}`))
+	}))
+	defer s1.Close()
+	s2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		countB.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"from":"b"}`))
+	}))
+	defer s2.Close()
+
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{
+		UpstreamBaseURLs: []string{s1.URL, s2.URL},
+		GatewayAPIKeys:   []string{"sk-gw"},
+		UpstreamTimeout:  5 * time.Second,
+	}
+	r := gin.New()
+	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw")), ChatProxy(cfg, zap.NewNop()))
+
+	for i := 0; i < 4; i++ {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"m","messages":[]}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer sk-gw")
+		r.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code)
+	}
+	require.Equal(t, int32(2), countA.Load())
+	require.Equal(t, int32(2), countB.Load())
+}
+
+func TestChatProxy_ForwardsCustomHeader(t *testing.T) {
+	var gotUA, gotCustom string
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUA = r.Header.Get("User-Agent")
+		gotCustom = r.Header.Get("X-Custom-Client")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer up.Close()
+
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{
+		UpstreamBaseURL: up.URL,
+		GatewayAPIKeys:  []string{"sk-gw"},
+		UpstreamTimeout: 5 * time.Second,
+	}
+	r := gin.New()
+	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw")), ChatProxy(cfg, zap.NewNop()))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"m","messages":[]}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer sk-gw")
+	req.Header.Set("User-Agent", "nexus-test-ua")
+	req.Header.Set("X-Custom-Client", "foo")
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "nexus-test-ua", gotUA)
+	require.Equal(t, "foo", gotCustom)
 }
