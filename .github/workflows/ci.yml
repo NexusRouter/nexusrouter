@@ -10,6 +10,7 @@ jobs:
   # Remote signatures (NexusRouter/cla) require repo secret CLA_ASSISTANT_TOKEN (mapped to PERSONAL_ACCESS_TOKEN below).
   cla-check:
     name: CLA Signature Check
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: write
