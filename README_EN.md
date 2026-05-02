@@ -55,6 +55,8 @@ Before each `git commit`, checks aligned with CI run based on **staged paths** (
 
 Before contributing, please read and sign the **Contributor License Agreement (CLA)**. Pull requests merged into `main` are checked with [CLA Assistant](https://github.com/cla-assistant/cla-assistant); signatures are stored in `signatures/version1/cla.json`, and the agreement text is published in the [NexusRouter CLA repository](https://github.com/NexusRouter/cla/blob/main/CLA.md).
 
+Relational database design and review expectations live in [`openspec/specs/database-design-standards/spec.md`](openspec/specs/database-design-standards/spec.md). **Pull requests that introduce or change relational schema** MUST checklist those requirements (SHALL/MUST) and scenarios in the PR description with a short compliance note.
+
 ## License
 
 This project is licensed under the [GNU Affero General Public License v3.0](https://www.gnu.org/licenses/agpl-3.0.html) (AGPL-3.0). Use, modification, and distribution are subject to the full license text.
