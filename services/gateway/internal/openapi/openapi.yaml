@@ -164,6 +164,68 @@ paths:
       summary: 固定当前上游 id
       tags:
         - admin
+  /v1/models:
+    get:
+      description: 列出当前网关已发布模型（OpenAI List models 子集）；需网关 API Key。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object:
+                    type: string
+                    example: list
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/OpenAIModelItem"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/handler.GatewayErrorBody"
+      security:
+        - BearerAuth: []
+      summary: List models
+      tags:
+        - chat
+  /v1/models/{model}:
+    get:
+      description: 检索单个已发布模型元数据。
+      parameters:
+        - in: path
+          name: model
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenAIModelItem"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/handler.GatewayErrorBody"
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/handler.GatewayErrorBody"
+      security:
+        - BearerAuth: []
+      summary: Retrieve model
+      tags:
+        - chat
   /v1/chat/completions:
     post:
       description: 与 OpenAI Chat Completions 兼容子集；官方概览
@@ -224,6 +286,19 @@ components:
       name: Authorization
       type: apiKey
   schemas:
+    OpenAIModelItem:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          example: model
+        created:
+          type: integer
+          format: int64
+        owned_by:
+          type: string
     handler.ChatCompletionRequest:
       properties:
         messages:

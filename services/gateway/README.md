@@ -43,6 +43,8 @@ go run -ldflags "-X github.com/NexusRouter/nexusrouter/services/gateway/internal
 | `GET /openapi.json`             | 同上（由嵌入 YAML 转 JSON）                                                                                    |
 | `GET /swagger/index.html`       | **Swagger UI**（当 `NEXUSROUTER_ENABLE_SWAGGER_UI` 不为 `false` 时启用）                                       |
 | `POST /v1/chat/completions`     | OpenAI 兼容 Chat Completions **反向代理**（需网关鉴权与上游配置）                                                        |
+| `GET /v1/models`                | OpenAI 兼容 **模型列表**（子集；需与 Chat 相同的网关 API Key；仅返回模型库中「已启用绑定且上游 id 存在于当前快照」的条目） |
+| `GET /v1/models/{model}`        | 检索单个已发布模型元数据（同上鉴权；不存在则 404）                                                                                    |
 | `POST /internal/reload-keys`    | 热加载 API Key（从数据库重新读取；仅当设置了 `NEXUSROUTER_ADMIN_RELOAD_TOKEN` 时注册；需 Bearer 该令牌）                          |
 | `POST /internal/reload-config`  | 从数据库重新加载网关快照（同上 Bearer）                                                                                |
 | `PUT /internal/upstream/active` | 仅更新内存中的 `**active_upstream_id`**（JSON：`{"active_upstream_id":"..."}`，空字符串解除 pin；**不写回持久化**，重启后以库/文件为准） |
@@ -60,9 +62,17 @@ OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api
 
 引擎级：**CORS**（可选，来自 `gateway.yaml` 的 `cors`）→ `**X-Request-ID`** → **Recovery** → **统一 JSON 错误** → **按 IP 限流**（全局 `rate_limit.rps_per_ip` 与 `rate_limit_rules` 中 `dimension: ip` 的规则，鉴权前；`/health`、`/openapi*`、`/swagger*`、`/internal*`、`/api/admin*` 与 **OPTIONS** 跳过）→ **IP 名单**（`ip_access`；跳过路径同上）→ 业务路由。
 
-`POST /v1/chat/completions` 链：**GatewayAuth** → **按 Key 限流**（全局 `rps_per_key` 与规则维度 `api_key_fp`；**OPTIONS** 跳过）→ **ChatProxy**。
+`GET /v1/models` 与 `GET /v1/models/:model` 链：**GatewayAuth**（与 Chat 相同；**OPTIONS** 跳过）→ 返回模型库聚合结果（不转发上游）。
+
+`POST /v1/chat/completions` 链：**GatewayAuth** → **按 Key 限流**（全局 `rps_per_key` 与规则维度 `api_key_fp`；**OPTIONS** 跳过）→ **ChatProxy**（若数据库存在模型库绑定：在已确定命中的 **`upstream_id`** 上，将 JSON body 的 **`model`** 按绑定 **`actual_model`** 改写后再转发上游）。
 
 两维限流同时启用时：**任一超限即 429**（先执行 IP，再执行 Key）。超限 Zap 为 **Warn**，含 `**request_id`** 与 `**reason`**：`RATE_LIMIT_IP` / `RATE_LIMIT_KEY`。名单拒绝为 403，错误码 `**IP_BLOCKED`**。
+
+### 模型库（管理 API 与同步）
+
+- 数据表在 **AutoMigrate** 中创建：`model_catalog_entries`（逻辑模型 id、展示名等）、`model_upstream_bindings`（绑定到 `gateway.yaml` 中的 **上游 id**、启用、优先级、可选 **actual_model**）。**`actual_model` 非空** 时，**Chat Completions** 转发会把请求 JSON 中的 **`model`** 替换为该值（与当前 **Picker** 命中的上游一致时生效）。
+- 管理端路径前缀：`GET/POST/PUT/DELETE /api/admin/v1/model-library/...`（需管理 JWT；写操作遵循与 API Key 相同的 **operator 只读** 策略）。
+- **从上游同步**：`POST /api/admin/v1/model-library/sync`，请求体 `{"upstream_id":"...","bearer":"可选"}`；向该上游的 `{base_url}/v1/models` 发起 GET。若未传 `bearer`，则使用环境变量 **`NEXUSROUTER_UPSTREAM_API_KEY`**。响应仅返回拉取到的模型 id 列表（**不自动写入**目录，由控制台或后续流程决定）。
 
 ### 进阶管理（限流规则 / CORS / IP 名单 / 日志）
 
