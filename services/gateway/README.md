@@ -17,7 +17,7 @@ cd services/gateway
 go run ./cmd/api
 ```
 
-默认监听 **:8080**。
+默认监听 **:8080**（可用环境变量 **`NEXUSROUTER_HTTP_LISTEN_ADDR`** 覆盖，例如 `:9090`）。
 
 版本号可通过构建注入，例如：
 
@@ -50,11 +50,15 @@ OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api
 
 ### 中间件与限流顺序
 
-引擎级：**CORS**（可选，来自 `gateway.yaml` 的 `cors`）→ `**X-Request-ID`** → **Recovery** → **统一 JSON 错误** → **按 IP 限流**（`rate_limit.rps_per_ip`，鉴权前；`/health`、`/openapi*`、`/swagger*`、`/internal*` 与 **OPTIONS** 跳过）→ 业务路由。
+引擎级：**CORS**（可选，来自 `gateway.yaml` 的 `cors`）→ `**X-Request-ID`** → **Recovery** → **统一 JSON 错误** → **按 IP 限流**（全局 `rate_limit.rps_per_ip` 与 `rate_limit_rules` 中 `dimension: ip` 的规则，鉴权前；`/health`、`/openapi*`、`/swagger*`、`/internal*`、`/api/admin*` 与 **OPTIONS** 跳过）→ **IP 名单**（`ip_access`；跳过路径同上）→ 业务路由。
 
-`POST /v1/chat/completions` 链：**GatewayAuth** → **按 Key 限流**（`rate_limit.rps_per_key`，鉴权成功后；**OPTIONS** 跳过）→ **ChatProxy**。
+`POST /v1/chat/completions` 链：**GatewayAuth** → **按 Key 限流**（全局 `rps_per_key` 与规则维度 `api_key_fp`；**OPTIONS** 跳过）→ **ChatProxy**。
 
-两维限流同时启用时：**任一超限即 429**（先执行 IP，再执行 Key）。超限 Zap 为 **Warn**，含 `**request_id`** 与 `**reason**`：`RATE_LIMIT_IP` / `RATE_LIMIT_KEY`。
+两维限流同时启用时：**任一超限即 429**（先执行 IP，再执行 Key）。超限 Zap 为 **Warn**，含 `**request_id`** 与 `**reason**`：`RATE_LIMIT_IP` / `RATE_LIMIT_KEY`。名单拒绝为 **403**，错误码 **`IP_BLOCKED`**。
+
+### 进阶管理（限流规则 / CORS / IP 名单 / 日志）
+
+在启用管理控制台且配置 `**NEXUSROUTER_GATEWAY_CONFIG_FILE**` 时，可通过 **`/api/admin/v1`** 读写 **`rate_limit_rules`**、**`ip_access`**、**`cors`**，并查询 **`proxy_access_log`** 指向的 JSON 行日志（有扫描字节与行数上限）。误配 **IP 白名单** 时仍可通过本机 **`POST /internal/reload-config`** 或已登录管理端将 `ip_access.mode` 切回 **`off`**。CSV 导出**不包含**明文 API Key。
 
 ### 代理访问日志
 
@@ -75,7 +79,55 @@ OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api
 | `NEXUSROUTER_FORWARD_CLIENT_AUTHORIZATION` | `true` 时将客户端 `Authorization` 原样转发上游。                                                                                                                   |
 | `NEXUSROUTER_UPSTREAM_TIMEOUT`             | 等待上游响应头超时，如 `120s`（默认 120s）。                                                                                                                           |
 | `NEXUSROUTER_ENABLE_SWAGGER_UI`            | 设为 `false` 关闭 Swagger UI（OpenAPI 路由仍可用）。                                                                                                               |
+| `NEXUSROUTER_ENABLE_ADMIN_CONSOLE`         | `true` 时启用 **`/api/admin/v1/*`** 管理 HTTP API（仍需下方 JWT 与账号配置完整）。                                                                                         |
+| `NEXUSROUTER_ADMIN_JWT_SECRET`             | 管理端 JWT **HMAC** 密钥（建议随机长字符串，勿提交到 Git）。                                                                                                         |
+| `NEXUSROUTER_ADMIN_JWT_EXPIRE`             | 访问令牌有效期，如 `24h`（默认 24h）。                                                                                                                               |
+| `NEXUSROUTER_ADMIN_REFRESH_EXPIRE`         | 「记住我」时的最长会话，如 `168h`（默认 7d）；须大于等于 `ADMIN_JWT_EXPIRE` 方生效。                                                                                          |
+| `NEXUSROUTER_ADMIN_USERNAME`               | 管理员登录用户名。                                                                                                                                                    |
+| `NEXUSROUTER_ADMIN_PASSWORD_BCRYPT`        | 管理员密码 **bcrypt** 哈希（`$2a$...`）；可用 `go run golang.org/x/crypto/bcrypt` 或运维工具生成。**禁止**在环境变量中存放明文生产密码。                                      |
+| `NEXUSROUTER_ADMIN_OPERATOR_USERNAME`      | （可选）**操作员**登录用户名；与管理员账号独立。需同时设置 `NEXUSROUTER_ADMIN_OPERATOR_PASSWORD_BCRYPT` 才生效。操作员 JWT `role` 为 `operator`，管理 API **写**路由返回 **403**（`POST /auth/logout` 除外）。 |
+| `NEXUSROUTER_ADMIN_OPERATOR_PASSWORD_BCRYPT` | （可选）操作员密码 **bcrypt** 哈希。 |
+| `NEXUSROUTER_HTTP_LISTEN_ADDR`             | （可选）网关 HTTP 监听地址，默认 `:8080`。 |
+| `NEXUSROUTER_ADMIN_PASSWORD_RESET_SMTP`    | （预留）邮件重置相关配置；未配置时「忘记密码」仅返回运维指引。                                                                                                                    |
 
+
+### 管理控制台 API（`/api/admin/v1`）
+
+当 `**NEXUSROUTER_ENABLE_ADMIN_CONSOLE=true**` 且 JWT 密钥、用户名、bcrypt 密码哈希均已配置时注册：
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/admin/v1/auth/login` | 登录，body：`username`、`password`、`remember`；返回 `access_token`（Bearer）、`role`（`admin` \| `operator`）等。 |
+| `GET` | `/api/admin/v1/auth/me` | 当前 JWT 对应用户名与 `role`。 |
+| `GET` | `/api/admin/v1/auth/password-reset-info` | 忘记密码说明（无需鉴权）。 |
+| `POST` | `/api/admin/v1/auth/logout` | 登出（客户端丢弃令牌即可，服务端无状态）。 |
+| `GET` | `/api/admin/v1/system/settings` | 聚合可读系统设置项（含 `mutability` 元数据）。 |
+| `PUT` | `/api/admin/v1/system/settings` | 热更新类字段（当前实现含 `proxy_access_log`）；监听类项需改环境变量并重启。 |
+| `GET` | `/api/admin/v1/alerts/status` | 运行态告警状态（依赖 `gateway.yaml` 中 `admin_alerts` 与进程内指标）。 |
+| `GET` | `/api/admin/v1/metrics/summary` | 进程内指标：请求量、成功率、平均耗时、今日/昨日、按 `code` 分桶错误等。 |
+| `GET` | `/api/admin/v1/gateway/snapshot` | 当前快照：`upstreams`、`routing`、`cors`、`rate_limit`、`rate_limit_rules`、`ip_access`、`proxy_access_log` 等。 |
+| `PUT` | `/api/admin/v1/gateway/config` | 替换 `upstreams` + `routing`；`persist: true` 时原子写 **`NEXUSROUTER_GATEWAY_CONFIG_FILE`** 并 `Reload()`。 |
+| `PUT` | `/api/admin/v1/gateway/active-upstream` | 设置 `active_upstream_id`；可选 `persist: true` 写回 YAML。 |
+| `GET` / `PUT` | `/api/admin/v1/gateway/cors` | 读写 CORS 段；`PUT` 可带 `allow_origins_bulk`（换行/逗号分隔）与 `persist`。 |
+| `GET` / `PUT` | `/api/admin/v1/gateway/rate-limit-rules` | 读写 `rate_limit_rules` 数组（整体替换）；`PUT` body：`{ "rules": [...], "persist": true }`。 |
+| `GET` / `PUT` | `/api/admin/v1/security/ip-access` | 读写 `ip_access`；`PATCH` 支持 `add` / `remove` CIDR 列表与可选 `mode`。 |
+| `GET` | `/api/admin/v1/logs/query` | 日志筛选与分页（`from`、`to`、`path_prefix`、`status_min`、`status_max`、`api_key_fp`、`client_ip`、`limit`、`cursor`）。 |
+| `GET` | `/api/admin/v1/logs/export.csv` | 同筛选条件的 CSV 流式下载。 |
+| `GET` | `/api/admin/v1/keys` | 列出 API Key（脱敏），需已配置 **`NEXUSROUTER_GATEWAY_KEYS_FILE`**。 |
+| `POST` | `/api/admin/v1/keys` | 新建密钥（响应体一次性返回 `secret`）。 |
+| `PATCH` | `/api/admin/v1/keys/:id` | 更新 `disabled` / `expires_at`。 |
+| `DELETE` | `/api/admin/v1/keys/:id` | 删除。 |
+| `POST` | `/api/admin/v1/keys/batch-disable` | body：`{ "ids": ["..."] }`。 |
+| `POST` | `/api/admin/v1/keys/batch-delete` | body：`{ "ids": ["..."] }`。 |
+
+除 `login` 与 `password-reset-info` 外，均须在请求头携带 **`Authorization: Bearer <access_token>`**。
+
+**安全建议**：管理 API 与控制台应仅在内网或通过 **HTTPS** 暴露；JWT 与 API Key 勿写入前端仓库；生产环境将 `NEXUSROUTER_ENABLE_SWAGGER_UI` 设为 `false` 时，仪表盘「接口调试」页依赖同源代理访问 `/swagger`（仍须单独评估是否对管理网段开放）。
+
+### Web 仪表盘（`web/dashboard`）
+
+- 本地开发：`cd web/dashboard && pnpm dev`，Vite 已将 **`/api`**、**`/health`**、**`/openapi.json`**、**`/swagger`** 代理到 **`http://127.0.0.1:8080`**（请先启动网关）。
+- 生产部署：将构建产物与网关同域，或设置 **`VITE_API_BASE_URL`** 指向网关根 URL。
 
 ### 密钥文件格式（`NEXUSROUTER_GATEWAY_KEYS_FILE`）
 
@@ -97,6 +149,7 @@ OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api
 ```
 
 - `**expires_at**`：可省略或 `null` 表示永不过期；否则为 **RFC3339 / RFC3339Nano**；到达该时刻起密钥视为过期（返回 **401**）。
+- `**created_at**`：可选，RFC3339；管理端新建密钥时会自动写入。
 - `**disabled`**：`true` 时不接受该密钥。
 - 生产环境请将文件权限限制为 `**0600**`，并避免将真实密钥提交到 Git。
 

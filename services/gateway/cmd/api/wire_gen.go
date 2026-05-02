@@ -31,7 +31,8 @@ func InitializeApp() (*app.Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	engine := provider.ProvideEngine(logger, config, store, runtimeStore)
-	application := app.NewApplication(logger, engine, store, runtimeStore)
+	collector := provider.ProvideMetrics()
+	engine := provider.ProvideEngine(logger, config, store, runtimeStore, collector)
+	application := app.NewApplication(logger, engine, store, runtimeStore, config, collector)
 	return application, nil
 }

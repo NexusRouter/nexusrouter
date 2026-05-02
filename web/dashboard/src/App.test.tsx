@@ -1,10 +1,19 @@
 import { render, screen } from '@testing-library/react'
+import { I18nextProvider } from 'react-i18next'
+import { MemoryRouter } from 'react-router'
 import { describe, expect, it } from 'vitest'
+import i18n from './i18n/config'
 import App from './App'
 
 describe('App', () => {
-  it('渲染标题', () => {
-    render(<App />)
-    expect(screen.getByText('NexusRouter 控制台')).toBeTruthy()
+  it('登录页渲染标题', () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter initialEntries={['/login']}>
+          <App />
+        </MemoryRouter>
+      </I18nextProvider>,
+    )
+    expect(screen.getByText('管理员登录')).toBeTruthy()
   })
 })
