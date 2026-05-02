@@ -2,7 +2,7 @@
 
 ## Purpose
 
-定义网关在启动阶段向 **`model_vendor`** 表**幂等预置**已知官方原厂的行为，与 **`model-library`** / **`model-library-aggregation`** 中 **`model_vendor`** 字段定义一致；不定义上游与实例。实现清单与 **`vendor_code`** 常量见 **`services/gateway/internal/repository/official_vendors_seed.go`**；与 PangaeaHub **`relay/channeltype`** 的对照见变更 **`openspec/changes/seed-official-vendors-at-init/design.md`**。
+定义网关在启动阶段向 **`model_vendor`** 表**幂等预置**已知官方原厂（及可选的第三方聚合商策略）的行为，与 **`model-library`** / **`model-library-aggregation`** 中 **`model_vendor`** 字段定义一致；不定义上游与实例。
 
 ## Requirements
 

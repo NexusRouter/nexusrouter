@@ -1,8 +1,11 @@
 # admin-console-global-ux Specification
 
 ## Purpose
-TBD - created by archiving change console-global-ui-ux-refactor. Update Purpose after archive.
+
+约束管理控制台（`web/dashboard`）的全局体验基线：侧栏信息架构、导航高亮、危险操作确认、空态与加载错误反馈、术语层级、跨页引导与只读权限说明，且不要求变更既有管理 API。
+
 ## Requirements
+
 ### Requirement: 侧栏信息架构与域分组
 
 `web/dashboard` 已登录管理布局的侧栏导航 MUST 将现有条目组织为**至少两个层级**：**域（分组标题）**与**菜单项**，且 MUST NOT 改变各菜单项既有 `path` 与路由注册方式。分组 MUST 覆盖当前全部一级业务入口：仪表盘、上游、模型库、API Key、访问日志、网关策略、系统设置。移动端抽屉导航 MUST 与桌面侧栏使用同一套分组与顺序。
@@ -84,4 +87,3 @@ TBD - created by archiving change console-global-ui-ux-refactor. Update Purpose 
 
 - **WHEN** 开发者抓取重构前后的网络请求（同一用户操作路径）
 - **THEN** 请求 URL 与方法集合与重构前一致（除用户主动修改的数据外）
-
