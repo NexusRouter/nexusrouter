@@ -66,12 +66,16 @@ type firstBootCompleteBody struct {
 //	@Router		/api/bootstrap/v1/complete [post]
 func firstBootComplete(cfg *config.Config, db *gorm.DB, log *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if cfg == nil || strings.TrimSpace(cfg.AdminJWTSecret) == "" {
-			WriteGatewayError(c, http.StatusBadRequest, "BOOTSTRAP_JWT_MISSING", "请在环境中配置 NEXUSROUTER_ADMIN_JWT_SECRET 后再完成初始化")
+		if cfg == nil {
+			WriteGatewayError(c, http.StatusBadRequest, "BOOTSTRAP_JWT_MISSING", "网关配置不可用")
 			return
 		}
-		if cfg != nil && !cfg.EnableAdminConsole {
-			WriteGatewayError(c, http.StatusBadRequest, "ADMIN_DISABLED", "管理控制台未启用，无法创建管理员")
+		if !cfg.EnableAdminConsole {
+			WriteGatewayError(c, http.StatusBadRequest, "ADMIN_DISABLED", "管理控制台已关闭：请将 NEXUSROUTER_ENABLE_ADMIN_CONSOLE 设为 true（或删除该环境变量使用默认开启）后重启网关")
+			return
+		}
+		if strings.TrimSpace(cfg.AdminJWTSecret) == "" {
+			WriteGatewayError(c, http.StatusBadRequest, "BOOTSTRAP_JWT_MISSING", "请在环境中配置 NEXUSROUTER_ADMIN_JWT_SECRET 后再完成初始化")
 			return
 		}
 		var body firstBootCompleteBody

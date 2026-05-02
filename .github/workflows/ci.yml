@@ -23,17 +23,8 @@ jobs:
           go-version-file: services/gateway/go.mod
           cache-dependency-path: services/gateway/go.sum
 
-      - name: Set up Node.js (swagger2openapi → OAS3)
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
       - name: Go fmt
         run: test -z "$(gofmt -l .)"
-
-      # go:embed openapi.yaml 须磁盘上存在；该文件不入库，故在 lint 与 go test 之前生成。
-      - name: Generate Swag docs and OpenAPI (embed)
-        run: make docs
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v8
@@ -43,9 +34,6 @@ jobs:
 
       - name: Go vet
         run: go vet ./...
-
-      - name: Verify Swag docs drift (docs/ only; openapi.yaml is generated, not tracked)
-        run: git diff --exit-code docs/
 
       - name: Go test
         run: make test

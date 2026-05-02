@@ -2,6 +2,7 @@ import { App, Button, Card, Checkbox, Form, Input, Typography } from 'antd'
 import { useLocation, useNavigate } from 'react-router'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import PublicPageShell from '../components/PublicPageShell'
 import { api } from '../services/api'
 import { useAuthStore } from '../stores/authStore'
 
@@ -23,8 +24,8 @@ export default function LoginPage() {
   }, [token, navigate])
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
-      <Card className="w-full max-w-md shadow-md" title={t('login.title')}>
+    <PublicPageShell>
+      <Card className="w-full max-w-md shadow-lg dark:border-slate-700" title={t('login.title')}>
         <Typography.Paragraph type="secondary" className="!mb-4">
           {t('login.hint')}
         </Typography.Paragraph>
@@ -88,6 +89,6 @@ export default function LoginPage() {
           </Form.Item>
         </Form>
       </Card>
-    </div>
+    </PublicPageShell>
   )
 }

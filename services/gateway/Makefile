@@ -1,18 +1,15 @@
 .PHONY: docs wire lint test build-api
 
-# 单一事实来源：Go 源码中的 swag 注释。
-# - docs/：swag init 生成的 Swagger 2（docs.go、swagger.json、swagger.yaml）
-# - internal/openapi/openapi.yaml：由 swagger2openapi 从 docs/swagger.yaml 转换的 OAS3，go:embed 后运行时提供 /openapi.*
-#   该文件已 .gitignore；go build / go test 前须成功执行过 docs（见 test、build-api 目标）。
-# 本地执行 make docs 需已安装 Node.js（用于 npx）。
+# 可选：从 Go 内 swag 注释重新生成 docs/ 与 internal/openapi/openapi.yaml（需 Node.js npx）。
+# 日常构建与 CI 不执行；更新注释后如需刷新嵌入的 OpenAPI，可本地运行 make docs 并提交变更。
 docs:
 	go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g main.go -d ./cmd/api,./internal/handler --parseInternal -o ./docs
 	npx --yes swagger2openapi@7.0.0 docs/swagger.yaml -o internal/openapi/openapi.yaml
 
-test: docs
+test:
 	go test ./... -count=1 -cover
 
-build-api: docs
+build-api:
 	go build -o /tmp/nexusrouter-gateway ./cmd/api
 
 wire:

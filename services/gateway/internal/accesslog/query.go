@@ -194,8 +194,12 @@ type cursorPayload struct {
 // QueryJSONLines 从快照配置读取日志尾部，合并多文件后按时间逆序分页。
 // 当返回 truncated 为 true 时表示因行数上限未读完所有候选行，结果可能不完整。
 func QueryJSONLines(ctx context.Context, snap *runtime.Snapshot, f LogFilters) ([]map[string]interface{}, string, bool, error) {
-	if snap == nil || !snap.ProxyAccessLog.Enabled {
-		return nil, "", false, fmt.Errorf("accesslog: proxy_access_log 未启用")
+	if snap == nil {
+		return nil, "", false, fmt.Errorf("accesslog: 无运行时快照")
+	}
+	if !snap.ProxyAccessLog.Enabled {
+		// 未启用时返回空结果而非错误，避免管理端查询始终 400。
+		return []map[string]interface{}{}, "", false, nil
 	}
 	path := strings.TrimSpace(snap.ProxyAccessLog.Path)
 	if path == "" {

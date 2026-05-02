@@ -76,7 +76,8 @@ func IsSystemInitialized(db *gorm.DB) (bool, error) {
 	var row SystemBootstrapRow
 	if err := db.Select("initialized").First(&row, SystemBootstrapSingletonPK).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return true, nil
+			// 无引导行视为未完成初始化（正常启动后 EnsureSystemBootstrap 会建行；此处避免误放行门闸）。
+			return false, nil
 		}
 		return false, err
 	}
@@ -97,7 +98,7 @@ func getBootstrapStatusTx(db *gorm.DB, now time.Time) (BootstrapStatusDTO, error
 		var row SystemBootstrapRow
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&row, SystemBootstrapSingletonPK).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				out = BootstrapStatusDTO{Initialized: true, Phase: BootstrapPhaseCompleted}
+				out = BootstrapStatusDTO{Initialized: false, Phase: BootstrapPhaseReady}
 				return nil
 			}
 			return err

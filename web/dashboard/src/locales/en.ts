@@ -10,10 +10,15 @@ export default {
     menuRateLimits: 'Rate limits',
     menuCors: 'CORS',
     menuIpAccess: 'IP access',
-    menuDebug: 'API debug',
     menuSettings: 'System settings',
     langZh: '中文',
     langEn: 'English',
+    themeLight: 'Light',
+    themeDark: 'Dark',
+    themeSystem: 'System',
+    themeSwitcherAria: 'Switch theme',
+    languageSwitcherAria: 'Switch language',
+    topBannerHint: 'NexusRouter gateway console — manage upstreams, keys, and rate limits from the sidebar',
   },
   login: {
     title: 'Admin sign-in',
@@ -30,7 +35,7 @@ export default {
   setup: {
     title: 'First-time setup',
     intro:
-      'Create the super admin and optional site display name. Requires NEXUSROUTER_ADMIN_JWT_SECRET and admin console enabled on the gateway.',
+      'Create the super admin and optional site display name. The admin console is on by default. If the JWT secret is unset, the gateway generates one at startup.',
     adminUsername: 'Super admin username',
     adminPassword: 'Super admin password',
     siteName: 'Site display name (optional)',
@@ -42,7 +47,8 @@ export default {
     fail: 'Setup failed; check gateway logs',
     alreadyDone: 'Already initialized; opening sign-in',
     inProgress: 'Another session is initializing; try again shortly',
-    jwtMissing: 'Configure NEXUSROUTER_ADMIN_JWT_SECRET on the gateway first',
+    jwtMissing: 'JWT secret missing and auto-generation failed; check gateway logs',
+    adminDisabled: 'Admin console is turned off on the gateway: remove NEXUSROUTER_ENABLE_ADMIN_CONSOLE=false or set it to true and restart',
   },
   errors: {
     forbidden: 'You do not have permission (operator is read-only).',
@@ -157,6 +163,7 @@ export default {
       exportFail: 'Export failed',
       warnQueryFirst: 'Run a query first to fix filters for export',
       queryFail: 'Query failed',
+      logDisabled: 'Proxy access logging is off (proxy_access_log.enabled in gateway.yaml). Enable it, set path, then reload config.',
       scanTruncated: 'Scan hit row limit; results may be incomplete.',
       labelFrom: 'from (RFC3339)',
       labelTo: 'to (RFC3339)',
@@ -211,15 +218,6 @@ export default {
       patchRemove: 'Remove',
       persistShort: 'Persist',
       applyPatch: 'Apply PATCH',
-    },
-    swagger: {
-      title: 'API debug',
-      alertMsg:
-        'For gateway APIs, set Authorization: Bearer in Swagger (gateway API key or admin JWT, depending on the operation).',
-      hintBefore: 'If this page is blank, ensure',
-      hintMid: 'is not false, and open this page via the dev proxy or same origin as',
-      hintEnd: '.',
-      iframeTitle: 'Swagger UI',
     },
   },
 } as const

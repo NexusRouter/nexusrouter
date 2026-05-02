@@ -75,11 +75,10 @@ tmp/
 *.prof
 *.pprof
 
-# Gateway default SQLite file (NEXUSROUTER_SQLITE_PATH default: gateway.db)
+# Gateway default SQLite (default path: services/gateway/gateway.db; override: NEXUSROUTER_SQLITE_PATH)
+services/gateway/gateway.db
 services/gateway/**/gateway.db
 
-# OpenAPI 3：由 make docs 生成，go:embed 使用；不入库，CI/本地构建前须已执行 make docs
-services/gateway/internal/openapi/openapi.yaml
 
 # JetBrains IDE (local)
 .idea/
