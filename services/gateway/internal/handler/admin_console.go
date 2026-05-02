@@ -57,6 +57,7 @@ func RegisterAdminConsole(
 		gw.POST("/keys/batch-delete", adminBatchDelete(ks, log))
 		gw.PUT("/system/settings", adminSystemSettingsPut(rt))
 		registerAdminAdvanced(g, gw, rt, log)
+		registerModelLibraryRoutes(g, gw, cfg, rt, db, log)
 	}
 }
 

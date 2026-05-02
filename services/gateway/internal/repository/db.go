@@ -54,5 +54,12 @@ func AutoMigrate(db *gorm.DB) error {
 	if db == nil {
 		return fmt.Errorf("repository: db 为空")
 	}
-	return db.AutoMigrate(&GatewaySnapshotRow{}, &APIKeyModel{}, &AdminUserModel{}, &SystemBootstrapRow{})
+	return db.AutoMigrate(
+		&GatewaySnapshotRow{},
+		&APIKeyModel{},
+		&AdminUserModel{},
+		&SystemBootstrapRow{},
+		&ModelCatalogEntry{},
+		&ModelUpstreamBinding{},
+	)
 }

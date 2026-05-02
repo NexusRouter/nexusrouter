@@ -11,8 +11,9 @@ import {
   Shield,
   Gauge,
   Sparkles,
+  Boxes,
 } from 'lucide-react'
-import { Button, Drawer, Layout, theme } from 'antd'
+import { Button, Drawer, Layout, Tooltip, theme } from 'antd'
 import { useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
@@ -37,6 +38,7 @@ export default function AdminLayout() {
   const items: NavItem[] = [
     { key: 'dashboard', path: '/dashboard', labelKey: 'layout.menuDashboard', icon: <BarChart3 className="h-4 w-4" /> },
     { key: 'upstreams', path: '/upstreams', labelKey: 'layout.menuUpstreams', icon: <Server className="h-4 w-4" /> },
+    { key: 'model-library', path: '/model-library', labelKey: 'layout.menuModelLibrary', icon: <Boxes className="h-4 w-4" /> },
     { key: 'api-keys', path: '/api-keys', labelKey: 'layout.menuApiKeys', icon: <KeyRound className="h-4 w-4" /> },
     { key: 'logs', path: '/logs', labelKey: 'layout.menuLogs', icon: <ScrollText className="h-4 w-4" /> },
     { key: 'rate-limits', path: '/rate-limits', labelKey: 'layout.menuRateLimits', icon: <Gauge className="h-4 w-4" /> },
@@ -47,6 +49,9 @@ export default function AdminLayout() {
 
   const selected = (() => {
     const p = loc.pathname
+    if (p.startsWith('/model-library')) {
+      return 'model-library'
+    }
     for (const it of items) {
       if (it.key !== 'dashboard' && p.startsWith(it.path)) {
         return it.key
@@ -157,19 +162,18 @@ export default function AdminLayout() {
               <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
                 <ThemeSwitcher />
                 <LanguageSwitcher />
-                <Button
-                  type="primary"
-                  ghost
-                  size="small"
-                  className="!border-white/40 !text-white hover:!bg-white/10"
-                  icon={<LogOut className="h-3.5 w-3.5" />}
-                  onClick={() => {
-                    logout()
-                    navigate('/login', { replace: true })
-                  }}
-                >
-                  <span className="hidden sm:inline">{t('layout.logout')}</span>
-                </Button>
+                <Tooltip title={t('layout.logout')} placement="bottom">
+                  <Button
+                    type="text"
+                    aria-label={t('layout.logout')}
+                    className="!flex !h-8 !min-w-8 !items-center !justify-center !rounded-full !border-0 !bg-white/10 !p-1.5 !text-white hover:!bg-white/20"
+                    icon={<LogOut className="h-[18px] w-[18px]" aria-hidden />}
+                    onClick={() => {
+                      logout()
+                      navigate('/login', { replace: true })
+                    }}
+                  />
+                </Tooltip>
               </div>
             </div>
             <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
@@ -203,9 +207,6 @@ export default function AdminLayout() {
             className="rounded-2xl border border-slate-200/80 p-4 shadow-sm backdrop-blur-sm sm:p-6 dark:border-slate-700/80"
             style={{ background: token.colorBgContainer }}
           >
-            <div className="mb-4 hidden items-center justify-between lg:flex">
-              <h1 className="m-0 text-lg font-semibold text-slate-800 dark:text-slate-100">{t('layout.title')}</h1>
-            </div>
             <AdminAlertBar />
             <Outlet />
           </div>

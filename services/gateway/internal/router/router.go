@@ -57,19 +57,37 @@ func Register(r *gin.Engine, d Deps) {
 	disallow := func(c *gin.Context) {
 		handler.WriteGatewayError(c, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "仅支持 POST")
 	}
+	disallowModels := func(c *gin.Context) {
+		handler.WriteGatewayError(c, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "仅支持 GET")
+	}
 	for _, method := range []string{
 		http.MethodGet, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead,
 	} {
 		r.Handle(method, "/v1/chat/completions", disallow)
 	}
+	for _, method := range []string{
+		http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead,
+	} {
+		r.Handle(method, "/v1/models", disallowModels)
+		r.Handle(method, "/v1/models/:model", disallowModels)
+	}
 	r.Handle(http.MethodOptions, "/v1/chat/completions", func(c *gin.Context) {
 		c.Status(http.StatusNoContent)
 	})
 
+	r.GET("/v1/models",
+		handler.GatewayAuth(d.KeyStore, d.Metrics),
+		handler.ListModels(d.DB, d.Runtime),
+	)
+	r.GET("/v1/models/:model",
+		handler.GatewayAuth(d.KeyStore, d.Metrics),
+		handler.RetrieveModel(d.DB, d.Runtime),
+	)
+
 	r.POST("/v1/chat/completions",
 		handler.GatewayAuth(d.KeyStore, d.Metrics),
 		handler.KeyRateLimit(d.Runtime, log, d.Metrics),
-		handler.ChatProxy(cfg, log, d.Runtime, d.Metrics),
+		handler.ChatProxy(cfg, log, d.Runtime, d.Metrics, d.DB),
 	)
 
 	handler.RegisterAdminConsole(r, cfg, adm, d.Metrics, d.Runtime, d.KeyStore, log, d.DB)

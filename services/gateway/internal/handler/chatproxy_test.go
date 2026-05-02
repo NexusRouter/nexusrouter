@@ -13,11 +13,14 @@ import (
 
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/config"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/keystore"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/repository"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/runtime"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 func testKeyStore(t *testing.T, keys ...string) *keystore.Store {
@@ -80,7 +83,7 @@ func TestChatProxy_Upstream200_JSON(t *testing.T) {
 		UpstreamTimeout: 5 * time.Second,
 	}
 	r := gin.New()
-	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw"), nil), ChatProxy(cfg, zap.NewNop(), testRuntimeStore(t, cfg), nil))
+	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw"), nil), ChatProxy(cfg, zap.NewNop(), testRuntimeStore(t, cfg), nil, nil))
 
 	body := `{"model":"m","messages":[{"role":"user","content":"hi"}]}`
 	rec := httptest.NewRecorder()
@@ -108,7 +111,7 @@ func TestChatProxy_Upstream4xx_Passthrough(t *testing.T) {
 		UpstreamTimeout: 5 * time.Second,
 	}
 	r := gin.New()
-	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw"), nil), ChatProxy(cfg, zap.NewNop(), testRuntimeStore(t, cfg), nil))
+	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw"), nil), ChatProxy(cfg, zap.NewNop(), testRuntimeStore(t, cfg), nil, nil))
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewBufferString(`{"model":"m","messages":[]}`))
@@ -128,7 +131,7 @@ func TestChatProxy_UpstreamUnreachable(t *testing.T) {
 		UpstreamTimeout: 200 * time.Millisecond,
 	}
 	r := gin.New()
-	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw"), nil), ChatProxy(cfg, zap.NewNop(), testRuntimeStore(t, cfg), nil))
+	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw"), nil), ChatProxy(cfg, zap.NewNop(), testRuntimeStore(t, cfg), nil, nil))
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewBufferString(`{"model":"m","messages":[]}`))
@@ -166,7 +169,7 @@ func TestChatProxy_RoundRobinTwoUpstreams(t *testing.T) {
 	}
 	r := gin.New()
 	rt := testRuntimeStore(t, cfg)
-	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw"), nil), ChatProxy(cfg, zap.NewNop(), rt, nil))
+	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw"), nil), ChatProxy(cfg, zap.NewNop(), rt, nil, nil))
 
 	for i := 0; i < 4; i++ {
 		rec := httptest.NewRecorder()
@@ -178,6 +181,52 @@ func TestChatProxy_RoundRobinTwoUpstreams(t *testing.T) {
 	}
 	require.Equal(t, int32(2), countA.Load())
 	require.Equal(t, int32(2), countB.Load())
+}
+
+func TestChatProxy_RewritesModelFromModelLibraryBinding(t *testing.T) {
+	var gotBody string
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		gotBody = string(b)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer up.Close()
+
+	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, repository.AutoMigrate(db))
+	require.NoError(t, repository.CreateModelCatalogEntry(db, &repository.ModelCatalogEntry{ID: "logical-m", DisplayName: "L"}))
+	am := "upstream-real"
+	require.NoError(t, repository.CreateModelUpstreamBinding(db, &repository.ModelUpstreamBinding{
+		CatalogEntryID: "logical-m",
+		UpstreamID:     "default",
+		Enabled:        true,
+		ActualModel:    &am,
+	}))
+
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{
+		UpstreamBaseURL: up.URL,
+		GatewayAPIKeys:  []string{"sk-gw"},
+		UpstreamTimeout: 5 * time.Second,
+	}
+	r := gin.New()
+	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw"), nil), ChatProxy(cfg, zap.NewNop(), testRuntimeStore(t, cfg), nil, db))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"logical-m","messages":[]}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer sk-gw")
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var parsed map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(gotBody), &parsed))
+	var mid string
+	require.NoError(t, json.Unmarshal(parsed["model"], &mid))
+	require.Equal(t, "upstream-real", mid)
 }
 
 func TestChatProxy_ForwardsCustomHeader(t *testing.T) {
@@ -197,7 +246,7 @@ func TestChatProxy_ForwardsCustomHeader(t *testing.T) {
 		UpstreamTimeout: 5 * time.Second,
 	}
 	r := gin.New()
-	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw"), nil), ChatProxy(cfg, zap.NewNop(), testRuntimeStore(t, cfg), nil))
+	r.POST("/v1/chat/completions", GatewayAuth(testKeyStore(t, "sk-gw"), nil), ChatProxy(cfg, zap.NewNop(), testRuntimeStore(t, cfg), nil, nil))
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"m","messages":[]}`))

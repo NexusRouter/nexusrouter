@@ -53,3 +53,31 @@ type SystemBootstrapRow struct {
 
 // TableName 显式表名。
 func (SystemBootstrapRow) TableName() string { return "system_bootstrap" }
+
+// ModelCatalogEntry 模型库目录项（逻辑模型 id，与客户端请求 model 字段对齐）。
+type ModelCatalogEntry struct {
+	ID          string `gorm:"column:id;primaryKey;size:191"`
+	DisplayName string `gorm:"size:255"`
+	OwnedBy     string `gorm:"size:191"`
+	Metadata    string `gorm:"type:text"` // 可选 JSON
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+// TableName 显式表名。
+func (ModelCatalogEntry) TableName() string { return "model_catalog_entries" }
+
+// ModelUpstreamBinding 目录项与上游 id 的绑定；同一 (catalog_entry_id, upstream_id) 唯一。
+type ModelUpstreamBinding struct {
+	ID             uint   `gorm:"primaryKey"`
+	CatalogEntryID string `gorm:"size:191;uniqueIndex:ux_binding_cat_up"`
+	UpstreamID     string `gorm:"size:191;uniqueIndex:ux_binding_cat_up"`
+	Enabled        bool
+	Priority       int64
+	ActualModel    *string `gorm:"size:191"`
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+// TableName 显式表名。
+func (ModelUpstreamBinding) TableName() string { return "model_upstream_bindings" }
