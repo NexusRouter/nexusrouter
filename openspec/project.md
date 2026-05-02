@@ -8,7 +8,7 @@ NexusRouter 是开源 LLM API 网关：以 **OpenAI 兼容** API 统一接入多
 
 | 区域 | 技术 | 路径 |
 |------|------|------|
-| 网关（后端） | Go **1.25.x**，Gin，Wire，Zap，GORM；默认 **SQLite**（`gateway.db`）、可选 **Postgres**（`NEXUSROUTER_DATABASE_URL`）；Redis 等见 `go.mod` | `services/gateway/` |
+| 网关（后端） | Go **1.26.x**，Gin，Wire，Zap，GORM；默认 **SQLite**（`gateway.db`）、可选 **Postgres**（`NEXUSROUTER_DATABASE_URL`）；Redis 等见 `go.mod` | `services/gateway/` |
 | 控制台（前端） | Node **≥22**，**pnpm 9**，Vite 6，React 19，TypeScript 5.7，Tailwind v4，antd 6 | `web/dashboard/` |
 | 仓库根工具链 | **pnpm 9**（仅 Husky 等极少量 devDependency，与控制台包管理器一致） | `package.json`、`pnpm-lock.yaml`（根目录） |
 | 规范驱动 | [OpenSpec](https://github.com/fission-ai/openspec) | `openspec/`（`specs/` 能力规范，`changes/` 变更提案） |
@@ -52,4 +52,4 @@ pnpm dev
 
 ## English (short)
 
-NexusRouter: open-source LLM API gateway (OpenAI-compatible), AGPL-3.0. Backend: **Go 1.24 + Gin** in `services/gateway/` (entry `cmd/api`). Dashboard: **React + Vite + pnpm** in `web/dashboard/`. Specs under `openspec/`.
+NexusRouter: open-source LLM API gateway (OpenAI-compatible), AGPL-3.0. Backend: **Go 1.26 + Gin** in `services/gateway/` (entry `cmd/api`). Dashboard: **React + Vite + pnpm** in `web/dashboard/`. Specs under `openspec/`.

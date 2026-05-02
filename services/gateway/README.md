@@ -4,7 +4,7 @@ NexusRouter 网关服务，模块路径：`github.com/NexusRouter/nexusrouter/se
 
 ## 环境要求
 
-- **Go 1.25.x**（与 `go.mod` 中 `go` 指令一致）
+- **Go 1.26.x**（与 `go.mod` 中 `go` 指令一致；当前稳定版见 [go.dev/dl](https://go.dev/dl/)）
 - （可选）**Wire**：`go install github.com/google/wire/cmd/wire@v0.7.0`
 - （可选）**Air 热重载**：`go install github.com/air-verse/air@latest`，在项目根执行 `air`（需自行添加 `.air.toml`）
 

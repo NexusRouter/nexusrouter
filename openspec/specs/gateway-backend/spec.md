@@ -5,7 +5,7 @@ TBD - created by archiving change project-initialization. Update Purpose after a
 ## Requirements
 ### Requirement: Go 与 Web 框架版本
 
-`services/gateway` MUST 使用 **Go 1.24.x** 工具链（`go` directive），并依赖 **github.com/gin-gonic/gin v1.10.0** 作为 HTTP 框架。
+`services/gateway` MUST 使用 **Go 1.26.x** 工具链（`go` directive），并依赖 **github.com/gin-gonic/gin v1.10.0** 作为 HTTP 框架。
 
 #### Scenario: 模块解析
 
