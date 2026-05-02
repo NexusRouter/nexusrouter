@@ -10,13 +10,11 @@ import SetupPage from './pages/Setup'
 import ApiKeysPage from './pages/ApiKeys'
 import UpstreamsPage from './pages/Upstreams'
 import AccessLogsPage from './pages/AccessLogs'
-import RateLimitRulesPage from './pages/RateLimitRules'
-import CorsSettingsPage from './pages/CorsSettings'
-import IpAccessPage from './pages/IpAccess'
+import GatewayPolicyPage from './pages/GatewayPolicyPage'
 import SystemSettingsPage from './pages/SystemSettings'
 import ModelLibraryPage from './pages/ModelLibrary'
 import { useAuthStore } from './stores/authStore'
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import axios from 'axios'
 import { MessageBridge } from './components/MessageBridge'
 import { fetchBootstrapStatus } from './services/bootstrap'
@@ -46,8 +44,13 @@ function RequireAuth() {
 /** 根据网关全局初始化状态重定向：未完成则仅允许 /setup；完成后禁止访问 /setup。 */
 function BootstrapShell() {
   const loc = useLocation()
-  const [loading, setLoading] = useState(true)
-  const [initialized, setInitialized] = useState(true)
+  /** 当前路径下是否已拿到 definitive 的 bootstrap 结论；路由一变先置 false，避免沿用旧路径的 initialized 误判或短暂渲染 /setup。 */
+  const [ready, setReady] = useState(false)
+  const [initialized, setInitialized] = useState(false)
+
+  useLayoutEffect(() => {
+    setReady(false)
+  }, [loc.pathname])
 
   useEffect(() => {
     let cancelled = false
@@ -65,16 +68,16 @@ function BootstrapShell() {
         }
       } finally {
         if (!cancelled) {
-          setLoading(false)
+          setReady(true)
         }
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [loc.pathname])
 
-  if (loading) {
+  if (!ready) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
         <Spin size="large" />
@@ -120,9 +123,17 @@ function LocalizedApp() {
                 <Route path="/model-library" element={<ModelLibraryPage />} />
                 <Route path="/api-keys" element={<ApiKeysPage />} />
                 <Route path="/logs" element={<AccessLogsPage />} />
-                <Route path="/rate-limits" element={<RateLimitRulesPage />} />
-                <Route path="/cors" element={<CorsSettingsPage />} />
-                <Route path="/ip-access" element={<IpAccessPage />} />
+                <Route path="/gateway/policy" element={<GatewayPolicyPage />} />
+                <Route
+                  path="/gateway/rate-limits"
+                  element={<Navigate to="/gateway/policy#section-rate-limits" replace />}
+                />
+                <Route path="/gateway/cors" element={<Navigate to="/gateway/policy#section-cors" replace />} />
+                <Route
+                  path="/gateway/ip-access"
+                  element={<Navigate to="/gateway/policy#section-ip-access" replace />}
+                />
+                <Route path="/gateway" element={<Navigate to="/gateway/policy" replace />} />
                 <Route path="/settings" element={<SystemSettingsPage />} />
               </Route>
             </Route>

@@ -9,7 +9,6 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/redis/go-redis/v9"
 	_ "github.com/spf13/viper"
-	_ "github.com/swaggo/swag"
 	_ "gorm.io/driver/postgres"
 	_ "gorm.io/gorm"
 )

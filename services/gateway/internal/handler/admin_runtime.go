@@ -42,7 +42,7 @@ func AdminReloadConfig(cfg *config.Config, rt *runtime.Store, log *zap.Logger) g
 	}
 }
 
-// SetActiveUpstreamBody PUT /internal/upstream/active 请求体（供 swag 引用）。
+// SetActiveUpstreamBody PUT /internal/upstream/active 请求体。
 type SetActiveUpstreamBody struct {
 	ActiveUpstreamID string `json:"active_upstream_id"`
 }

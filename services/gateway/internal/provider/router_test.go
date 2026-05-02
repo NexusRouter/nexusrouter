@@ -19,7 +19,7 @@ import (
 func TestProvideEngine_HealthAndNotFound(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	log := zap.NewNop()
-	cfg := &config.Config{EnableSwaggerUI: false}
+	cfg := &config.Config{}
 	ks, err := keystore.New(cfg, log, nil)
 	require.NoError(t, err)
 	rt, err := runtime.NewStore(cfg, nil)

@@ -41,7 +41,6 @@ routing:
 	require.NoError(t, err)
 
 	cfg := &config.Config{
-		EnableSwaggerUI:             false,
 		GatewayAPIKeys:              []string{"k"},
 		GatewayConfigFile:           yamlPath,
 		EnableAdminConsole:          true,
@@ -96,7 +95,6 @@ routing:
 	admHash, err := bcrypt.GenerateFromPassword([]byte("adminpass"), bcrypt.MinCost)
 	require.NoError(t, err)
 	cfg := &config.Config{
-		EnableSwaggerUI:             false,
 		GatewayAPIKeys:              []string{"k"},
 		GatewayConfigFile:           yamlPath,
 		EnableAdminConsole:          true,

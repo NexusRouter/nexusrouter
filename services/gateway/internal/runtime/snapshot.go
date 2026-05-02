@@ -84,15 +84,24 @@ type Routing struct {
 	ActiveUpstreamID  string `yaml:"active_upstream_id"`
 }
 
+// proxyAccessLogYAML 用于解析 gateway.yaml：enabled 缺省时 *bool 为 nil，merge 时保留基线默认（默认启用）。
+type proxyAccessLogYAML struct {
+	Enabled    *bool  `yaml:"enabled"`
+	Path       string `yaml:"path"`
+	Level      string `yaml:"level"`
+	MaxSizeMB  int    `yaml:"max_size_mb"`
+	MaxBackups int    `yaml:"max_backups"`
+}
+
 type fileYAML struct {
-	Upstreams      []Upstream      `yaml:"upstreams"`
-	Routing        Routing         `yaml:"routing"`
-	CORS           CORS            `yaml:"cors"`
-	RateLimit      RateLimit       `yaml:"rate_limit"`
-	RateLimitRules []RateLimitRule `yaml:"rate_limit_rules"`
-	IPAccess       IPAccess        `yaml:"ip_access"`
-	ProxyAccessLog ProxyAccessLog  `yaml:"proxy_access_log"`
-	AdminAlerts    AdminAlerts     `yaml:"admin_alerts"`
+	Upstreams      []Upstream         `yaml:"upstreams"`
+	Routing        Routing            `yaml:"routing"`
+	CORS           CORS               `yaml:"cors"`
+	RateLimit      RateLimit          `yaml:"rate_limit"`
+	RateLimitRules []RateLimitRule    `yaml:"rate_limit_rules"`
+	IPAccess       IPAccess           `yaml:"ip_access"`
+	ProxyAccessLog proxyAccessLogYAML `yaml:"proxy_access_log"`
+	AdminAlerts    AdminAlerts        `yaml:"admin_alerts"`
 }
 
 // Snapshot 为原子替换的运行时视图。
@@ -265,7 +274,7 @@ func snapshotFromEnv(cfg *config.Config) *Snapshot {
 		CORS:           CORS{Enabled: false},
 		RateLimit:      RateLimit{},
 		IPAccess:       IPAccess{Mode: "off"},
-		ProxyAccessLog: ProxyAccessLog{Enabled: false, Level: "info"},
+		ProxyAccessLog: ProxyAccessLog{Enabled: true, Level: "info"},
 		AdminAlerts:    AdminAlerts{Enabled: false},
 	}
 }
@@ -289,9 +298,23 @@ func mergeFile(dst *Snapshot, f *fileYAML) {
 	if strings.TrimSpace(f.IPAccess.Mode) != "" || len(f.IPAccess.CIDRs) > 0 {
 		dst.IPAccess = f.IPAccess
 	}
-	dst.ProxyAccessLog = f.ProxyAccessLog
-	if dst.ProxyAccessLog.Level == "" {
+	y := f.ProxyAccessLog
+	if y.Enabled != nil {
+		dst.ProxyAccessLog.Enabled = *y.Enabled
+	}
+	if strings.TrimSpace(y.Path) != "" {
+		dst.ProxyAccessLog.Path = y.Path
+	}
+	if strings.TrimSpace(y.Level) != "" {
+		dst.ProxyAccessLog.Level = y.Level
+	} else if dst.ProxyAccessLog.Level == "" {
 		dst.ProxyAccessLog.Level = "info"
+	}
+	if y.MaxSizeMB != 0 {
+		dst.ProxyAccessLog.MaxSizeMB = y.MaxSizeMB
+	}
+	if y.MaxBackups != 0 {
+		dst.ProxyAccessLog.MaxBackups = y.MaxBackups
 	}
 	dst.AdminAlerts = f.AdminAlerts
 }

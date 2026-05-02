@@ -102,7 +102,7 @@ export default function ApiKeysPage() {
 
   const columns: ColumnsType<Row> = useMemo(
     () => [
-      { title: 'ID', dataIndex: 'id', key: 'id' },
+      { title: t('pages.apiKeys.colId'), dataIndex: 'id', key: 'id' },
       { title: t('pages.apiKeys.colMasked'), dataIndex: 'masked_secret', key: 'ms' },
       {
         title: t('pages.apiKeys.colStatus'),

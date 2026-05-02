@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Config 网关与 Chat 代理、文档 UI 相关配置。
+// Config 网关与 Chat 代理相关配置。
 type Config struct {
 	// UpstreamBaseURL 单上游基址（遗留）；当 UpstreamBaseURLs 为空时作为回退。
 	UpstreamBaseURL string
@@ -30,8 +30,6 @@ type Config struct {
 	UpstreamAPIKey string
 	// ForwardClientAuthorization 为 true 时将客户端 Authorization 原样转发上游。
 	ForwardClientAuthorization bool
-	// EnableSwaggerUI 是否暴露 /swagger/* 与相关静态资源。
-	EnableSwaggerUI bool
 	// GatewayConfigFile 可选 gateway.yaml 路径；非空时与 env 合并并由运行时热加载；亦可作为首次启动导入源。
 	GatewayConfigFile string
 	// DatabaseURL 非空时使用 Postgres GORM 连接串；为空时使用 SQLite 文件（见 SQLitePath）。
@@ -97,11 +95,6 @@ func Load() *Config {
 	if v.IsSet("NEXUSROUTER_FORWARD_CLIENT_AUTHORIZATION") {
 		fwd = v.GetBool("NEXUSROUTER_FORWARD_CLIENT_AUTHORIZATION")
 	}
-	swagger := true
-	if v.IsSet("NEXUSROUTER_ENABLE_SWAGGER_UI") {
-		swagger = v.GetBool("NEXUSROUTER_ENABLE_SWAGGER_UI")
-	}
-
 	adminConsole := true
 	if v.IsSet("NEXUSROUTER_ENABLE_ADMIN_CONSOLE") {
 		adminConsole = v.GetBool("NEXUSROUTER_ENABLE_ADMIN_CONSOLE")
@@ -140,7 +133,6 @@ func Load() *Config {
 		AdminReloadToken:            strings.TrimSpace(v.GetString("NEXUSROUTER_ADMIN_RELOAD_TOKEN")),
 		UpstreamAPIKey:              strings.TrimSpace(v.GetString("NEXUSROUTER_UPSTREAM_API_KEY")),
 		ForwardClientAuthorization:  fwd,
-		EnableSwaggerUI:             swagger,
 		GatewayConfigFile:           strings.TrimSpace(v.GetString("NEXUSROUTER_GATEWAY_CONFIG_FILE")),
 		DatabaseURL:                 strings.TrimSpace(v.GetString("NEXUSROUTER_DATABASE_URL")),
 		SQLitePath:                  strings.TrimSpace(v.GetString("NEXUSROUTER_SQLITE_PATH")),

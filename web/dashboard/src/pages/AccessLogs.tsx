@@ -1,4 +1,4 @@
-import { App, Button, DatePicker, Form, Input, InputNumber, Space, Table, Typography } from 'antd'
+import { App, Button, DatePicker, Form, Input, InputNumber, Select, Space, Table, Typography } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import type { Dayjs } from 'dayjs'
 import { useMemo, useState } from 'react'
@@ -19,6 +19,8 @@ type Filters = {
   cursor: string
 }
 
+type StatusPreset = 'any' | '2xx' | '3xx' | '4xx' | '5xx' | 'custom'
+
 function buildSearchParams(f: Filters) {
   const sp = new URLSearchParams()
   if (f.from) sp.set('from', f.from)
@@ -33,10 +35,37 @@ function buildSearchParams(f: Filters) {
   return sp
 }
 
+function presetToRange(preset: StatusPreset): { min?: number; max?: number } {
+  switch (preset) {
+    case '2xx':
+      return { min: 200, max: 299 }
+    case '3xx':
+      return { min: 300, max: 399 }
+    case '4xx':
+      return { min: 400, max: 499 }
+    case '5xx':
+      return { min: 500, max: 599 }
+    default:
+      return {}
+  }
+}
+
 /** 代理访问日志查询与 CSV 导出（经 axios 携带 Bearer）。 */
 export default function AccessLogsPage() {
   const { message } = App.useApp()
   const { t } = useTranslation()
+  const [form] = Form.useForm<{
+    from?: Dayjs
+    to?: Dayjs
+    path_prefix: string
+    status_range: StatusPreset
+    status_min?: number
+    status_max?: number
+    api_key_fp: string
+    client_ip: string
+    limit: number
+  }>()
+  const statusRange = Form.useWatch('status_range', form)
   const [filters, setFilters] = useState<Filters | null>(null)
 
   const q = useQuery({
@@ -98,24 +127,37 @@ export default function AccessLogsPage() {
         {t('pages.accessLogs.hint')}
       </Typography.Paragraph>
       <Form
+        form={form}
         layout="vertical"
         initialValues={{
           path_prefix: '',
+          status_range: 'any' satisfies StatusPreset,
           limit: 50,
         }}
         onFinish={(vals) => {
-          const fromD = vals.from as Dayjs | null | undefined
-          const toD = vals.to as Dayjs | null | undefined
+          const fromD = vals.from
+          const toD = vals.to
           if (fromD && toD && fromD.isAfter(toD)) {
             message.warning(t('pages.accessLogs.rangeInvalid'))
             return
+          }
+          const preset = vals.status_range as StatusPreset
+          let status_min: number | undefined
+          let status_max: number | undefined
+          if (preset === 'custom') {
+            status_min = vals.status_min
+            status_max = vals.status_max
+          } else if (preset !== 'any') {
+            const r = presetToRange(preset)
+            status_min = r.min
+            status_max = r.max
           }
           const f: Filters = {
             from: fromD ? fromD.toISOString() : '',
             to: toD ? toD.toISOString() : '',
             path_prefix: String(vals.path_prefix ?? ''),
-            status_min: vals.status_min,
-            status_max: vals.status_max,
+            status_min,
+            status_max,
             api_key_fp: String(vals.api_key_fp ?? ''),
             client_ip: String(vals.client_ip ?? ''),
             limit: Number(vals.limit) || 50,
@@ -146,12 +188,38 @@ export default function AccessLogsPage() {
           <Form.Item name="path_prefix" label={t('pages.accessLogs.labelPathPrefix')} className="!mb-0 min-w-[160px]">
             <Input placeholder="/v1/chat" />
           </Form.Item>
-          <Form.Item name="status_min" label={t('pages.accessLogs.labelStatusGte')} className="!mb-0 w-28">
-            <InputNumber min={100} max={599} className="w-full" />
+          <Form.Item name="status_range" label={t('pages.accessLogs.labelStatusRange')} className="!mb-0 min-w-[200px]">
+            <Select
+              className="w-full"
+              options={(
+                ['any', '2xx', '3xx', '4xx', '5xx', 'custom'] as const
+              ).map((k) => ({
+                value: k,
+                label:
+                  k === 'any'
+                    ? t('pages.accessLogs.statusAny')
+                    : k === '2xx'
+                      ? t('pages.accessLogs.status2xx')
+                      : k === '3xx'
+                        ? t('pages.accessLogs.status3xx')
+                        : k === '4xx'
+                          ? t('pages.accessLogs.status4xx')
+                          : k === '5xx'
+                            ? t('pages.accessLogs.status5xx')
+                            : t('pages.accessLogs.statusCustom'),
+              }))}
+            />
           </Form.Item>
-          <Form.Item name="status_max" label={t('pages.accessLogs.labelStatusLte')} className="!mb-0 w-28">
-            <InputNumber min={100} max={599} className="w-full" />
-          </Form.Item>
+          {statusRange === 'custom' ? (
+            <>
+              <Form.Item name="status_min" label={t('pages.accessLogs.labelStatusGte')} className="!mb-0 w-28">
+                <InputNumber min={100} max={599} className="w-full" />
+              </Form.Item>
+              <Form.Item name="status_max" label={t('pages.accessLogs.labelStatusLte')} className="!mb-0 w-28">
+                <InputNumber min={100} max={599} className="w-full" />
+              </Form.Item>
+            </>
+          ) : null}
           <Form.Item name="api_key_fp" label={t('pages.accessLogs.labelKeyFp')} className="!mb-0 min-w-[140px]">
             <Input />
           </Form.Item>

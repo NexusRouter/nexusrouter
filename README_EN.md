@@ -13,12 +13,12 @@ NexusRouter is a high-performance, open-source LLM API gateway that exposes **Op
 - **API key** management and quota control
 - **Token usage** tracking and real-time billing
 - **Rate limiting** and request retries
-- Lightweight stack: **Go 1.24** + **Gin** (`services/gateway`), dashboard **React + Vite** (`web/dashboard`)
+- Lightweight stack: **Go 1.26** + **Gin** (`services/gateway`), dashboard **React + Vite** (`web/dashboard`)
 - **AGPLv3** open-source license (closed-source commercial use requires compliance or separate permission)
 
 ## Quick Start
 
-**Prerequisites:** Go **1.24.x**, Node **≥ 22 (LTS)**, [pnpm](https://pnpm.io/) **9.x** (recommended: `corepack enable && corepack prepare pnpm@9.15.9 --activate`).
+**Prerequisites:** Go **1.26.x**, Node **≥ 22 (LTS)**, [pnpm](https://pnpm.io/) **9.x** (recommended: `corepack enable && corepack prepare pnpm@9.15.9 --activate`).
 
 **Repository root (Husky git hooks)**
 
@@ -49,7 +49,7 @@ See `openspec/project.md` and `services/gateway/README.md` for more detail.
 
 After cloning, run **`pnpm install` once at the repository root** to install Husky and register the Git `pre-commit` hook (`core.hooksPath` points to `.husky/_`).
 
-Before each `git commit`, checks aligned with CI run based on **staged paths** (unchanged subprojects are skipped). Not included: gateway `make docs` (only when refreshing the embedded OpenAPI snapshot; run locally in `services/gateway`). Emergency bypass: `HUSKY=0 git commit ...`.
+Before each `git commit`, checks aligned with CI run based on **staged paths** (unchanged subprojects are skipped). Not included: optional gateway maintenance steps (see `services/gateway/README.md`). Emergency bypass: `HUSKY=0 git commit ...`.
 
 ## Contributing
 

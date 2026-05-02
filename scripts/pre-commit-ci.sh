@@ -1,6 +1,5 @@
 #!/usr/bin/env sh
 # 提交前尽量对齐 .github/workflows/ci.yml（未改动的子项目会跳过）。
-# 未包含：Gateway 的 make docs（耗时长，推送前请在改 swag 注释时本地执行）。
 set -eu
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"

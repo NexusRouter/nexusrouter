@@ -9,7 +9,6 @@ import (
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/handler"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/keystore"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/metrics"
-	"github.com/NexusRouter/nexusrouter/services/gateway/internal/openapi"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/runtime"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -26,7 +25,7 @@ type Deps struct {
 	DB       *gorm.DB
 }
 
-// Register 注册业务路由、OpenAPI 与 Chat 代理。
+// Register 注册业务路由与 Chat 代理。
 // 引擎级顺序见 provider：CORS → RequestID → Recovery → ErrorJSON → IP 限流 → IP 名单 → 本处 GatewayAuth → Key 限流 → ChatProxy。
 func Register(r *gin.Engine, d Deps) {
 	if d.Log == nil {
@@ -41,8 +40,6 @@ func Register(r *gin.Engine, d Deps) {
 	handler.RegisterFirstBootRoutes(r, cfg, d.DB, adm, log)
 
 	r.GET("/health", handler.Health())
-
-	openapi.Register(r, cfg.EnableSwaggerUI)
 
 	if strings.TrimSpace(cfg.AdminReloadToken) != "" {
 		if d.KeyStore != nil {

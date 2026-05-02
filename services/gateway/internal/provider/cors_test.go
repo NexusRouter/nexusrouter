@@ -30,7 +30,6 @@ func TestProvideEngine_CORS_PreflightAllowedOrigin(t *testing.T) {
 
 	log := zap.NewNop()
 	cfg := &config.Config{
-		EnableSwaggerUI:   false,
 		GatewayAPIKeys:    []string{"k"},
 		GatewayConfigFile: yamlPath,
 	}
@@ -63,7 +62,6 @@ func TestProvideEngine_CORS_DisallowedOriginNoAllowOrigin(t *testing.T) {
 
 	log := zap.NewNop()
 	cfg := &config.Config{
-		EnableSwaggerUI:   false,
 		GatewayAPIKeys:    []string{"k"},
 		GatewayConfigFile: yamlPath,
 	}
@@ -96,7 +94,6 @@ func TestProvideEngine_CORS_PreflightAfterYAMLReload(t *testing.T) {
 
 	log := zap.NewNop()
 	cfg := &config.Config{
-		EnableSwaggerUI:   false,
 		GatewayAPIKeys:    []string{"k"},
 		GatewayConfigFile: yamlPath,
 	}
@@ -142,8 +139,7 @@ func TestProvideEngine_EnvOnlyNoGatewayYAML(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	log := zap.NewNop()
 	cfg := &config.Config{
-		EnableSwaggerUI: false,
-		GatewayAPIKeys:  []string{"k"},
+		GatewayAPIKeys: []string{"k"},
 	}
 	ks, err := keystore.New(cfg, log, nil)
 	require.NoError(t, err)
@@ -161,8 +157,7 @@ func TestProvideEngine_CORS_Disabled_LocalhostPreflight(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	log := zap.NewNop()
 	cfg := &config.Config{
-		EnableSwaggerUI: false,
-		GatewayAPIKeys:  []string{"k"},
+		GatewayAPIKeys: []string{"k"},
 	}
 	ks, err := keystore.New(cfg, log, nil)
 	require.NoError(t, err)

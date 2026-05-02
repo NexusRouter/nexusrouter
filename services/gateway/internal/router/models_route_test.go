@@ -18,7 +18,7 @@ import (
 func TestRegister_Models_Routes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	e := gin.New()
-	cfg := &config.Config{EnableSwaggerUI: false, GatewayAPIKeys: []string{"gw-secret"}}
+	cfg := &config.Config{GatewayAPIKeys: []string{"gw-secret"}}
 	ks, err := keystore.New(cfg, zap.NewNop(), nil)
 	require.NoError(t, err)
 	rt, err := runtime.NewStore(cfg, nil)

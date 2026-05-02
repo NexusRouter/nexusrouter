@@ -14,11 +14,14 @@ import (
 
 func rateSkipPath(path string) bool {
 	switch {
-	case path == "/health", strings.HasPrefix(path, "/openapi"), strings.HasPrefix(path, "/swagger"):
+	case path == "/health":
 		return true
 	case strings.HasPrefix(path, "/internal"):
 		return true
 	case strings.HasPrefix(path, "/api/admin"):
+		return true
+	// 冷启动仪表盘会高频拉取 /api/bootstrap/v1/status；若走全局限流返回 429，前端会误判为未初始化并跳转 /setup。
+	case strings.HasPrefix(path, "/api/bootstrap"):
 		return true
 	default:
 		return false

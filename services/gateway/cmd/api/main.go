@@ -4,23 +4,10 @@ import (
 	"log"
 	"strings"
 
-	_ "github.com/NexusRouter/nexusrouter/services/gateway/docs" // swag 生成文档注册
 	"go.uber.org/zap"
 )
 
-// NexusRouter API 网关（OpenAI 兼容 Chat Completions 反向代理 + OpenAPI 3 文档）。
-//
-//	@title			NexusRouter Gateway API
-//	@version		1.0.0
-//	@description	OpenAI 兼容 Chat Completions 网关。REST 概览与认证约定参见 https://developers.openai.com/api/reference/overview
-//	@BasePath		/
-//	@host			localhost:8080
-//	@externalDocs.description	OpenAI API Overview
-//	@externalDocs.url			https://developers.openai.com/api/reference/overview
-//	@securityDefinitions.apikey	BearerAuth
-//	@in							header
-//	@name						Authorization
-//	@description				Bearer 令牌，与 OpenAI 一致（见官方概览）。
+// NexusRouter API 网关（OpenAI 兼容 Chat Completions 反向代理）。
 func main() {
 	app, err := InitializeApp()
 	if err != nil {
