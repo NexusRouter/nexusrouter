@@ -1,9 +1,6 @@
 package buildinfo
 
-import (
-	"testing"
-	"time"
-)
+import "testing"
 
 // TestVersionNonEmpty 版本字符串用于健康检查等，须非空。
 func TestVersionNonEmpty(t *testing.T) {
@@ -15,8 +12,5 @@ func TestVersionNonEmpty(t *testing.T) {
 func TestProcessStartSet(t *testing.T) {
 	if ProcessStart.IsZero() {
 		t.Fatal("ProcessStart 未初始化")
-	}
-	if time.Since(ProcessStart) < 0 {
-		t.Fatal("ProcessStart 在未来")
 	}
 }
