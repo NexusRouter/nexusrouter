@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"strings"
 
 	_ "github.com/NexusRouter/nexusrouter/services/gateway/docs" // swag 生成文档注册
 	"go.uber.org/zap"
@@ -27,7 +28,11 @@ func main() {
 	}
 	defer func(l *zap.Logger) { _ = l.Sync() }(app.Log)
 
-	app.Log.Info("网关启动", zap.String("addr", ":8080"))
+	addr := ":8080"
+	if app.Config != nil && strings.TrimSpace(app.Config.HTTPListenAddr) != "" {
+		addr = strings.TrimSpace(app.Config.HTTPListenAddr)
+	}
+	app.Log.Info("网关启动", zap.String("addr", addr))
 	if err := app.Run(); err != nil {
 		app.Log.Fatal("服务退出", zap.Error(err))
 	}

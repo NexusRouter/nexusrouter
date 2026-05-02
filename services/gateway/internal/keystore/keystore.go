@@ -2,9 +2,12 @@
 package keystore
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -19,6 +22,16 @@ type Record struct {
 	Secret    string
 	Disabled  bool
 	ExpiresAt *time.Time
+	CreatedAt *time.Time
+}
+
+// PublicRecord 对外展示（脱敏 secret）。
+type PublicRecord struct {
+	ID           string     `json:"id"`
+	MaskedSecret string     `json:"masked_secret"`
+	Disabled     bool       `json:"disabled"`
+	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
+	CreatedAt    *time.Time `json:"created_at,omitempty"`
 }
 
 // Store 在内存中保存密钥快照，支持原子替换以便热加载。
@@ -68,6 +81,7 @@ type fileRecord struct {
 	Secret    string  `json:"secret"`
 	Disabled  bool    `json:"disabled"`
 	ExpiresAt *string `json:"expires_at"`
+	CreatedAt *string `json:"created_at,omitempty"`
 }
 
 func loadRecordsFromFile(path string) ([]Record, error) {
@@ -101,10 +115,17 @@ func loadRecordsFromFile(path string) ([]Record, error) {
 			tu := t.UTC()
 			rec.ExpiresAt = &tu
 		}
+		if r.CreatedAt != nil && strings.TrimSpace(*r.CreatedAt) != "" {
+			t, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(*r.CreatedAt))
+			if err != nil {
+				t, err = time.Parse(time.RFC3339, strings.TrimSpace(*r.CreatedAt))
+			}
+			if err == nil {
+				tu := t.UTC()
+				rec.CreatedAt = &tu
+			}
+		}
 		out = append(out, rec)
-	}
-	if len(out) == 0 {
-		return nil, errors.New("keystore: 密钥文件无有效记录")
 	}
 	return out, nil
 }
@@ -181,4 +202,145 @@ func (s *Store) ValidateBearer(token string) bool {
 // ValidateXAPIKey 校验 X-API-Key（deprecated 兼容路径）。
 func (s *Store) ValidateXAPIKey(key string) bool {
 	return s.ValidateBearer(key)
+}
+
+// MaskSecret 脱敏展示 API Key。
+func MaskSecret(secret string) string {
+	s := strings.TrimSpace(secret)
+	if s == "" {
+		return ""
+	}
+	r := []rune(s)
+	if len(r) <= 8 {
+		return "****"
+	}
+	return string(r[:4]) + "…" + string(r[len(r)-4:])
+}
+
+// ListPublic 返回脱敏后的密钥列表（需已配置密钥文件）。
+func (s *Store) ListPublic() ([]PublicRecord, error) {
+	if s == nil || strings.TrimSpace(s.path) == "" {
+		return nil, fmt.Errorf("keystore: 未配置 NEXUSROUTER_GATEWAY_KEYS_FILE")
+	}
+	recs := s.snapshot()
+	out := make([]PublicRecord, 0, len(recs))
+	for _, r := range recs {
+		id := strings.TrimSpace(r.ID)
+		if id == "" {
+			id = "(legacy)"
+		}
+		out = append(out, PublicRecord{
+			ID:           id,
+			MaskedSecret: MaskSecret(r.Secret),
+			Disabled:     r.Disabled,
+			ExpiresAt:    r.ExpiresAt,
+			CreatedAt:    r.CreatedAt,
+		})
+	}
+	return out, nil
+}
+
+// ReplaceAllRecords 原子写回 JSON 并替换内存快照（需文件模式）。
+func (s *Store) ReplaceAllRecords(recs []Record) error {
+	if s == nil || strings.TrimSpace(s.path) == "" {
+		return fmt.Errorf("keystore: 未配置密钥文件")
+	}
+	now := time.Now().UTC()
+	norm := make([]Record, 0, len(recs))
+	for _, r := range recs {
+		sec := strings.TrimSpace(r.Secret)
+		if sec == "" {
+			continue
+		}
+		if strings.TrimSpace(r.ID) == "" {
+			r.ID = newRandomID()
+		}
+		if r.CreatedAt == nil {
+			t := now
+			r.CreatedAt = &t
+		}
+		norm = append(norm, r)
+	}
+	raw := make([]fileRecord, 0, len(norm))
+	for _, r := range norm {
+		raw = append(raw, recordToFile(r))
+	}
+	b, err := json.MarshalIndent(raw, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := writeJSONAtomic(s.path, b); err != nil {
+		return err
+	}
+	s.replace(norm)
+	return nil
+}
+
+func recordToFile(r Record) fileRecord {
+	fr := fileRecord{
+		ID:       strings.TrimSpace(r.ID),
+		Secret:   r.Secret,
+		Disabled: r.Disabled,
+	}
+	if r.ExpiresAt != nil {
+		s := r.ExpiresAt.UTC().Format(time.RFC3339Nano)
+		fr.ExpiresAt = &s
+	}
+	if r.CreatedAt != nil {
+		s := r.CreatedAt.UTC().Format(time.RFC3339Nano)
+		fr.CreatedAt = &s
+	}
+	return fr
+}
+
+func writeJSONAtomic(path string, data []byte) error {
+	dir := filepath.Dir(path)
+	f, err := os.CreateTemp(dir, ".nexus-keys-*.json")
+	if err != nil {
+		return fmt.Errorf("keystore: 临时文件: %w", err)
+	}
+	tmp := f.Name()
+	ok := false
+	defer func() {
+		if !ok {
+			_ = os.Remove(tmp)
+		}
+	}()
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return fmt.Errorf("keystore: 替换密钥文件: %w", err)
+	}
+	ok = true
+	return nil
+}
+
+func newRandomID() string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return "key_" + hex.EncodeToString(b)
+}
+
+// NewRandomSecret 生成随机 API Key 明文（hex）。
+func NewRandomSecret() string {
+	b := make([]byte, 24)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// SnapshotRecords 返回当前密钥快照副本（仅供管理端修改前读取）。
+func (s *Store) SnapshotRecords() []Record {
+	recs := s.snapshot()
+	out := make([]Record, len(recs))
+	copy(out, recs)
+	return out
 }

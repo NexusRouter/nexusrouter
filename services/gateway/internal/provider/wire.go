@@ -2,6 +2,7 @@ package provider
 
 import (
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/config"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/metrics"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/runtime"
 	"github.com/google/wire"
 )
@@ -12,10 +13,16 @@ var Set = wire.NewSet(
 	ProvideConfig,
 	ProvideKeyStore,
 	ProvideRuntimeStore,
+	ProvideMetrics,
 	ProvideEngine,
 )
 
 // ProvideRuntimeStore 加载 gateway.yaml（若配置）并与 env 合并为初始快照。
 func ProvideRuntimeStore(cfg *config.Config) (*runtime.Store, error) {
 	return runtime.NewStore(cfg)
+}
+
+// ProvideMetrics 进程内指标采集器（单例）。
+func ProvideMetrics() *metrics.Collector {
+	return metrics.NewCollector()
 }

@@ -27,6 +27,7 @@ func WriteGatewayError(c *gin.Context, status int, code, message string) {
 		rid = randomRequestID()
 	}
 	c.Writer.Header().Set(headerRequestID, rid)
+	c.Set("gateway_error_code", code)
 	c.AbortWithStatusJSON(status, gin.H{
 		"code":       code,
 		"message":    message,

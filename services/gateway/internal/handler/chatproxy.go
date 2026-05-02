@@ -10,6 +10,7 @@ import (
 
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/accesslog"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/config"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/metrics"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/runtime"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/upstream"
 	"github.com/gin-gonic/gin"
@@ -42,7 +43,7 @@ func (w *captureWriter) Write(b []byte) (int, error) {
 
 // ChatProxy 将 POST /v1/chat/completions 反向代理至运行时选中的上游。
 // 引擎级中间件顺序见 provider：CORS → RequestID → Recovery → ErrorJSON → IP 限流 →（本链）鉴权 → Key 限流 → ChatProxy。
-func ChatProxy(cfg *config.Config, log *zap.Logger, rt *runtime.Store) gin.HandlerFunc {
+func ChatProxy(cfg *config.Config, log *zap.Logger, rt *runtime.Store, col *metrics.Collector) gin.HandlerFunc {
 	pick := upstream.NewPicker()
 	transport := &http.Transport{
 		ResponseHeaderTimeout: cfg.UpstreamTimeout,
@@ -50,6 +51,19 @@ func ChatProxy(cfg *config.Config, log *zap.Logger, rt *runtime.Store) gin.Handl
 	}
 
 	return func(c *gin.Context) {
+		start := time.Now()
+		defer func() {
+			if col == nil {
+				return
+			}
+			st := c.Writer.Status()
+			if st == 0 {
+				st = http.StatusOK
+			}
+			code := c.GetString("gateway_error_code")
+			col.RecordChat(st, time.Since(start).Milliseconds(), code)
+		}()
+
 		snap := rt.Snapshot()
 		base, upID, upHost, err := pick.Pick(snap)
 		if err != nil || base == nil {
@@ -105,7 +119,6 @@ func ChatProxy(cfg *config.Config, log *zap.Logger, rt *runtime.Store) gin.Handl
 			WriteGatewayErrorHTTP(w, r, http.StatusBadGateway, "BAD_GATEWAY", "上游不可用")
 		}
 
-		start := time.Now()
 		baseW := &closeNotifyResponseWriter{ResponseWriter: c.Writer}
 		cw := &captureWriter{ResponseWriter: baseW}
 		defer func() {

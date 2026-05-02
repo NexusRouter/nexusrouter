@@ -4,9 +4,11 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/adminauth"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/config"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/handler"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/keystore"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/metrics"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/openapi"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/runtime"
 	"github.com/gin-gonic/gin"
@@ -19,10 +21,11 @@ type Deps struct {
 	Log      *zap.Logger
 	KeyStore *keystore.Store
 	Runtime  *runtime.Store
+	Metrics  *metrics.Collector
 }
 
 // Register 注册业务路由、OpenAPI 与 Chat 代理。
-// 引擎级顺序见 provider：CORS → RequestID → Recovery → ErrorJSON → IP 限流 → 本处 GatewayAuth → Key 限流 → ChatProxy。
+// 引擎级顺序见 provider：CORS → RequestID → Recovery → ErrorJSON → IP 限流 → IP 名单 → 本处 GatewayAuth → Key 限流 → ChatProxy。
 func Register(r *gin.Engine, d Deps) {
 	if d.Log == nil {
 		d.Log = zap.NewNop()
@@ -59,8 +62,11 @@ func Register(r *gin.Engine, d Deps) {
 	})
 
 	r.POST("/v1/chat/completions",
-		handler.GatewayAuth(d.KeyStore),
-		handler.KeyRateLimit(d.Runtime, log),
-		handler.ChatProxy(cfg, log, d.Runtime),
+		handler.GatewayAuth(d.KeyStore, d.Metrics),
+		handler.KeyRateLimit(d.Runtime, log, d.Metrics),
+		handler.ChatProxy(cfg, log, d.Runtime, d.Metrics),
 	)
+
+	adm := adminauth.New(cfg)
+	handler.RegisterAdminConsole(r, cfg, adm, d.Metrics, d.Runtime, d.KeyStore, log)
 }
