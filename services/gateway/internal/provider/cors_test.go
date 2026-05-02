@@ -34,11 +34,11 @@ func TestProvideEngine_CORS_PreflightAllowedOrigin(t *testing.T) {
 		GatewayAPIKeys:    []string{"k"},
 		GatewayConfigFile: yamlPath,
 	}
-	ks, err := keystore.New(cfg, log)
+	ks, err := keystore.New(cfg, log, nil)
 	require.NoError(t, err)
-	rt, err := runtime.NewStore(cfg)
+	rt, err := runtime.NewStore(cfg, nil)
 	require.NoError(t, err)
-	e := ProvideEngine(log, cfg, ks, rt, ProvideMetrics())
+	e := ProvideEngine(log, cfg, ks, rt, ProvideMetrics(), nil)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodOptions, "/v1/chat/completions", nil)
@@ -67,11 +67,11 @@ func TestProvideEngine_CORS_DisallowedOriginNoAllowOrigin(t *testing.T) {
 		GatewayAPIKeys:    []string{"k"},
 		GatewayConfigFile: yamlPath,
 	}
-	ks, err := keystore.New(cfg, log)
+	ks, err := keystore.New(cfg, log, nil)
 	require.NoError(t, err)
-	rt, err := runtime.NewStore(cfg)
+	rt, err := runtime.NewStore(cfg, nil)
 	require.NoError(t, err)
-	e := ProvideEngine(log, cfg, ks, rt, ProvideMetrics())
+	e := ProvideEngine(log, cfg, ks, rt, ProvideMetrics(), nil)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodOptions, "/v1/chat/completions", nil)
@@ -100,11 +100,11 @@ func TestProvideEngine_CORS_PreflightAfterYAMLReload(t *testing.T) {
 		GatewayAPIKeys:    []string{"k"},
 		GatewayConfigFile: yamlPath,
 	}
-	ks, err := keystore.New(cfg, log)
+	ks, err := keystore.New(cfg, log, nil)
 	require.NoError(t, err)
-	rt, err := runtime.NewStore(cfg)
+	rt, err := runtime.NewStore(cfg, nil)
 	require.NoError(t, err)
-	e := ProvideEngine(log, cfg, ks, rt, ProvideMetrics())
+	e := ProvideEngine(log, cfg, ks, rt, ProvideMetrics(), nil)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodOptions, "/v1/chat/completions", nil)
@@ -145,11 +145,11 @@ func TestProvideEngine_EnvOnlyNoGatewayYAML(t *testing.T) {
 		EnableSwaggerUI: false,
 		GatewayAPIKeys:  []string{"k"},
 	}
-	ks, err := keystore.New(cfg, log)
+	ks, err := keystore.New(cfg, log, nil)
 	require.NoError(t, err)
-	rt, err := runtime.NewStore(cfg)
+	rt, err := runtime.NewStore(cfg, nil)
 	require.NoError(t, err)
-	e := ProvideEngine(log, cfg, ks, rt, ProvideMetrics())
+	e := ProvideEngine(log, cfg, ks, rt, ProvideMetrics(), nil)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)

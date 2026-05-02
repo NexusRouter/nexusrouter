@@ -54,15 +54,15 @@ routing:
 	}
 
 	log := zap.NewNop()
-	ks, err := keystore.New(cfg, log)
+	ks, err := keystore.New(cfg, log, nil)
 	require.NoError(t, err)
-	rt, err := runtime.NewStore(cfg)
+	rt, err := runtime.NewStore(cfg, nil)
 	require.NoError(t, err)
-	auth := adminauth.New(cfg)
+	auth := adminauth.New(cfg, nil)
 	require.NotNil(t, auth)
 
 	e := gin.New()
-	RegisterAdminConsole(e, cfg, auth, metrics.NewCollector(), rt, ks, log)
+	RegisterAdminConsole(e, cfg, auth, metrics.NewCollector(), rt, ks, log, nil)
 
 	tok, _, role, err := auth.Login("operator1", opPass, false)
 	require.NoError(t, err)
@@ -108,14 +108,14 @@ routing:
 		AdminOperatorPasswordBcrypt: string(opHash),
 	}
 	log := zap.NewNop()
-	ks, err := keystore.New(cfg, log)
+	ks, err := keystore.New(cfg, log, nil)
 	require.NoError(t, err)
-	rt, err := runtime.NewStore(cfg)
+	rt, err := runtime.NewStore(cfg, nil)
 	require.NoError(t, err)
-	auth := adminauth.New(cfg)
+	auth := adminauth.New(cfg, nil)
 	e := gin.New()
 	col := metrics.NewCollector()
-	RegisterAdminConsole(e, cfg, auth, col, rt, ks, log)
+	RegisterAdminConsole(e, cfg, auth, col, rt, ks, log, nil)
 	tok, _, _, err := auth.Login("operator1", opPass, false)
 	require.NoError(t, err)
 	rec := httptest.NewRecorder()

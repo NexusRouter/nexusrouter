@@ -75,6 +75,9 @@ tmp/
 *.prof
 *.pprof
 
+# Gateway default SQLite file (NEXUSROUTER_SQLITE_PATH default: gateway.db)
+services/gateway/**/gateway.db
+
 # JetBrains IDE (local)
 .idea/
 

@@ -22,14 +22,14 @@ import (
 
 func testKeyStore(t *testing.T, keys ...string) *keystore.Store {
 	t.Helper()
-	s, err := keystore.New(&config.Config{GatewayAPIKeys: keys}, zap.NewNop())
+	s, err := keystore.New(&config.Config{GatewayAPIKeys: keys}, zap.NewNop(), nil)
 	require.NoError(t, err)
 	return s
 }
 
 func testRuntimeStore(t *testing.T, cfg *config.Config) *runtime.Store {
 	t.Helper()
-	rt, err := runtime.NewStore(cfg)
+	rt, err := runtime.NewStore(cfg, nil)
 	require.NoError(t, err)
 	return rt
 }

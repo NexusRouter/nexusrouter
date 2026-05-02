@@ -26,9 +26,9 @@ func TestOpenAPI_Swagger_Contract(t *testing.T) {
 		EnableSwaggerUI: true,
 		GatewayAPIKeys:  []string{"test-key"},
 	}
-	ks, err := keystore.New(cfg, zap.NewNop())
+	ks, err := keystore.New(cfg, zap.NewNop(), nil)
 	require.NoError(t, err)
-	rt, err := runtime.NewStore(cfg)
+	rt, err := runtime.NewStore(cfg, nil)
 	require.NoError(t, err)
 	Register(e, Deps{Config: cfg, Log: zap.NewNop(), KeyStore: ks, Runtime: rt})
 
