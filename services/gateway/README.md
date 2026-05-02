@@ -22,10 +22,10 @@ go run ./cmd/api
 
 ### 持久化（SQLite / Postgres）
 
-- 进程启动时会打开 **GORM** 数据库：未设置 `**NEXUSROUTER_DATABASE_URL`** 时使用本地 **SQLite** 文件（默认文件名 `**gateway.db`**，可用 `**NEXUSROUTER_SQLITE_PATH**` 覆盖路径）。
+- 进程启动时会打开 **GORM** 数据库：未设置 `**NEXUSROUTER_DATABASE_URL`** 时使用本地 **SQLite** 文件（默认文件名 `**gateway.db`**，可用 `**NEXUSROUTER_SQLITE_PATH`** 覆盖路径）。
 - 设置 `**NEXUSROUTER_DATABASE_URL**`（Postgres 连接串）时改用 **Postgres**，与 SQLite 共用同一套模型与业务逻辑。
-- 启动时执行 `**AutoMigrate`** 建表；若库中尚无网关 YAML / API Key / 管理员数据，且存在已配置的 `**NEXUSROUTER_GATEWAY_CONFIG_FILE**`、`**NEXUSROUTER_GATEWAY_KEYS_FILE**` 或环境变量中的管理员 bcrypt，则**一次性导入**到数据库。
-- **真源**为数据库：管理 API `persist: true` 写入数据库；`**SIGHUP`** / `**POST /internal/reload-keys**` / `**reload-config**` 在数据库模式下从库重载。
+- 启动时执行 `**AutoMigrate`** 建表；若库中尚无网关 YAML / API Key / 管理员数据，且存在已配置的 `**NEXUSROUTER_GATEWAY_CONFIG_FILE`**、`**NEXUSROUTER_GATEWAY_KEYS_FILE**` 或环境变量中的管理员 bcrypt，则**一次性导入**到数据库。
+- **真源**为数据库：管理 API `persist: true` 写入数据库；`**SIGHUP`** / `**POST /internal/reload-keys`** / `**reload-config**` 在数据库模式下从库重载。
 
 版本号可通过构建注入，例如：
 
@@ -62,15 +62,15 @@ OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api
 
 `POST /v1/chat/completions` 链：**GatewayAuth** → **按 Key 限流**（全局 `rps_per_key` 与规则维度 `api_key_fp`；**OPTIONS** 跳过）→ **ChatProxy**。
 
-两维限流同时启用时：**任一超限即 429**（先执行 IP，再执行 Key）。超限 Zap 为 **Warn**，含 `**request_id`** 与 `**reason`**：`RATE_LIMIT_IP` / `RATE_LIMIT_KEY`。名单拒绝为 **403**，错误码 `**IP_BLOCKED`**。
+两维限流同时启用时：**任一超限即 429**（先执行 IP，再执行 Key）。超限 Zap 为 **Warn**，含 `**request_id`** 与 `**reason`**：`RATE_LIMIT_IP` / `RATE_LIMIT_KEY`。名单拒绝为 403，错误码 `**IP_BLOCKED`**。
 
 ### 进阶管理（限流规则 / CORS / IP 名单 / 日志）
 
-在启用管理控制台时，可通过 `**/api/admin/v1**` 读写 `**rate_limit_rules**`、`**ip_access**`、`**cors**`，并查询 `**proxy_access_log**` 指向的 JSON 行日志（有扫描字节与行数上限）。误配 **IP 白名单** 时仍可通过本机 `**POST /internal/reload-config`** 或已登录管理端将 `ip_access.mode` 切回 `**off**`。CSV 导出**不包含**明文 API Key。
+在启用管理控制台时，可通过 `**/api/admin/v1**` 读写 `**rate_limit_rules**`、`**ip_access**`、`**cors**`，并查询 `**proxy_access_log**` 指向的 JSON 行日志（有扫描字节与行数上限）。误配 **IP 白名单** 时仍可通过本机 `**POST /internal/reload-config`** 或已登录管理端将 `ip_access.mode` 切回 `**off`**。CSV 导出**不包含**明文 API Key。
 
 ### 代理访问日志
 
-在 `gateway.yaml` 中配置 `**proxy_access_log`**（`enabled`、`path` 滚动、`level` 为 `**info**` 或 `**error**`）后，对完成的 Chat 代理请求写独立 JSON 行日志（与 stderr 应用日志分离）。字段含 `**request_id**`、`**method**`、`**path**`、`**client_ip**`、`**upstream_id**`、`**upstream_host**`、`**status**`、`**duration_ms**`，以及匿名 `**api_key_fp**`（鉴权成功后）。**不**记录 `Authorization` / `X-API-Key` 明文。
+在 `gateway.yaml` 中配置 `**proxy_access_log`**（`enabled`、`path` 滚动、`level` 为 `**info`** 或 `**error**`）后，对完成的 Chat 代理请求写独立 JSON 行日志（与 stderr 应用日志分离）。字段含 `**request_id**`、`**method**`、`**path**`、`**client_ip**`、`**upstream_id**`、`**upstream_host**`、`**status**`、`**duration_ms**`，以及匿名 `**api_key_fp**`（鉴权成功后）。**不**记录 `Authorization` / `X-API-Key` 明文。
 
 ### 环境变量一览
 
@@ -103,26 +103,26 @@ OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api
 
 ### 首次初始化（`/api/bootstrap/v1`）
 
-数据库表 `**system_bootstrap`** 保存全局 `**initialized**` 标志。未完成首次向导时，网关对除白名单外的 HTTP 请求返回 **403**（`code: BOOTSTRAP_REQUIRED`）；白名单含 `**GET /health`**、`**GET /api/bootstrap/v1/status**`、`**POST /api/bootstrap/v1/complete**`、`**POST /api/admin/v1/auth/login**`、`**GET /api/admin/v1/auth/password-reset-info**` 及 OpenAPI/Swagger 静态路径等。
+数据库表 `**system_bootstrap`** 保存全局 `**initialized`** 标志。未完成首次向导时，网关对除白名单外的 HTTP 请求返回 **403**（`code: BOOTSTRAP_REQUIRED`）；白名单含 `**GET /health`**、`**GET /api/bootstrap/v1/status`**、`**POST /api/bootstrap/v1/complete**`、`**POST /api/admin/v1/auth/login**`、`**GET /api/admin/v1/auth/password-reset-info**` 及 OpenAPI/Swagger 静态路径等。
 
 
 | 方法     | 路径                           | 说明                                                                                                                                                                            |
 | ------ | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET`  | `/api/bootstrap/v1/status`   | 匿名；返回 `initialized`（bool）、`phase`（`ready` | `initializing` | `completed`）。                                                                                                    |
+| `GET`  | `/api/bootstrap/v1/status`   | 匿名；返回 `initialized`（bool）、`phase`（`ready`                                                                                                                                     |
 | `POST` | `/api/bootstrap/v1/complete` | 匿名；body：`admin_username`、`admin_password`（≥8）、可选 `site_display_name`；**须**已配置 `**NEXUSROUTER_ADMIN_JWT_SECRET`** 且启用管理控制台。成功至多一次；重复返回 **409**（`BOOTSTRAP_ALREADY_COMPLETED`）。 |
-| `POST` | `/api/bootstrap/v1/reset`    | 需 `**Authorization: Bearer`** 且 JWT `role` 为 `**admin**`（非 operator）；清空 `**admin_users**` 并将 `**initialized**` 置回 **false**，用于运维重新走向导。                                        |
+| `POST` | `/api/bootstrap/v1/reset`    | 需 `**Authorization: Bearer`** 且 JWT `role` 为 `**admin`**（非 operator）；清空 `**admin_users**` 并将 `**initialized**` 置回 **false**，用于运维重新走向导。                                        |
 
 
-在 `**initialized=false`** 时，**不会**从环境变量 `**NEXUSROUTER_ADMIN_USERNAME` / `NEXUSROUTER_ADMIN_PASSWORD_BCRYPT`** 静默创建管理员（避免绕过向导）；向导完成后或 `**initialized=true**` 且库中仍无用户时，仍可按既有逻辑从 env 导入。
+在 `**initialized=false`** 时，**不会**从环境变量 `**NEXUSROUTER_ADMIN_USERNAME` / `NEXUSROUTER_ADMIN_PASSWORD_BCRYPT`** 静默创建管理员（避免绕过向导）；向导完成后或 `**initialized=true`** 且库中仍无用户时，仍可按既有逻辑从 env 导入。
 
 ### 管理控制台 API（`/api/admin/v1`）
 
-当 `**NEXUSROUTER_ENABLE_ADMIN_CONSOLE=true**` 且 JWT 密钥已配置，且（**未完成首次向导** 或 **数据库中存在 admin 用户** 或环境变量中已配置 `**NEXUSROUTER_ADMIN_USERNAME`** + `**NEXUSROUTER_ADMIN_PASSWORD_BCRYPT**`）时注册：
+当 `**NEXUSROUTER_ENABLE_ADMIN_CONSOLE=true**` 且 JWT 密钥已配置，且（**未完成首次向导** 或 **数据库中存在 admin 用户** 或环境变量中已配置 `**NEXUSROUTER_ADMIN_USERNAME`** + `**NEXUSROUTER_ADMIN_PASSWORD_BCRYPT`**）时注册：
 
 
 | 方法            | 路径                                       | 说明                                                                                                      |
 | ------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `POST`        | `/api/admin/v1/auth/login`               | 登录，body：`username`、`password`、`remember`；返回 `access_token`（Bearer）、`role`（`admin` | `operator`）等。       |
+| `POST`        | `/api/admin/v1/auth/login`               | 登录，body：`username`、`password`、`remember`；返回 `access_token`（Bearer）、`role`（`admin`                       |
 | `GET`         | `/api/admin/v1/auth/me`                  | 当前 JWT 对应用户名与 `role`。                                                                                   |
 | `GET`         | `/api/admin/v1/auth/password-reset-info` | 忘记密码说明（无需鉴权）。                                                                                           |
 | `POST`        | `/api/admin/v1/auth/logout`              | 登出（客户端丢弃令牌即可，服务端无状态）。                                                                                   |
@@ -152,7 +152,7 @@ OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api
 
 ### Web 仪表盘（`web/dashboard`）
 
-- 本地开发：`cd web/dashboard && pnpm dev`，Vite 已将 `**/api`**、`**/health**`、`**/openapi.json**`、`**/swagger**` 代理到 `**http://127.0.0.1:8080**`（请先启动网关）。
+- 本地开发：`cd web/dashboard && pnpm dev`，Vite 已将 `**/api`**、`**/health`**、`**/openapi.json**`、`**/swagger**` 代理到 `**http://127.0.0.1:8080**`（请先启动网关）。
 - 生产部署：将构建产物与网关同域，或设置 `**VITE_API_BASE_URL**` 指向网关根 URL。
 
 ### 密钥文件格式（`NEXUSROUTER_GATEWAY_KEYS_FILE`）
@@ -181,13 +181,13 @@ OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api
 
 ### 探活与监控
 
-- 负载均衡可轮询 `**GET /health**`，建议校验 HTTP **200** 且 JSON 中 `**status == "ok"`**。
+- 负载均衡可轮询 `**GET /health`**，建议校验 HTTP **200** 且 JSON 中 `**status == "ok"`**。
 - 可解析 `**server_time`** 做时钟漂移告警（策略由监控系统自定）。
 
 ### 热加载密钥与网关配置（`SIGHUP`）
 
-- 当使用 `**NEXUSROUTER_GATEWAY_KEYS_FILE**` 时，在 **Linux / macOS** 上可向进程发送 `**SIGHUP`** 以重新读取密钥文件（无需重启）。
-- 当 `**NEXUSROUTER_GATEWAY_CONFIG_FILE`** 非空时，同一 `**SIGHUP**` 也会尝试重新加载 `**gateway.yaml**`（失败则保留旧快照）。
+- 当使用 `**NEXUSROUTER_GATEWAY_KEYS_FILE`** 时，在 **Linux / macOS** 上可向进程发送 `**SIGHUP`** 以重新读取密钥文件（无需重启）。
+- 当 `**NEXUSROUTER_GATEWAY_CONFIG_FILE`** 非空时，同一 `**SIGHUP`** 也会尝试重新加载 `**gateway.yaml**`（失败则保留旧快照）。
 - **Windows** 无 `SIGHUP`，请使用对应 `**POST /internal/`*** 管理接口（需配置 `NEXUSROUTER_ADMIN_RELOAD_TOKEN`）。
 
 ### 客户端鉴权
@@ -206,7 +206,7 @@ cd services/gateway
 make docs
 ```
 
-克隆或改注释后：**先** `make docs` **再** `go test` / `go build`（或使用 `**make test`**、`**make build-api**`，二者均依赖 `docs`）。CI 在 `**golangci-lint` 与测试之前**执行一次 `make docs`（生成 `openapi.yaml` 供 `go:embed` 与 typecheck），随后仅对 `**docs/`** 执行 `git diff --exit-code` 防漂移（`openapi.yaml` 不纳入版本对比）。
+克隆或改注释后：**先** `make docs` **再** `go test` / `go build`（或使用 `**make test`**、`**make build-api`**，二者均依赖 `docs`）。CI 在 `**golangci-lint` 与测试之前**执行一次 `make docs`（生成 `openapi.yaml` 供 `go:embed` 与 typecheck），随后仅对 `**docs/`** 执行 `git diff --exit-code` 防漂移（`openapi.yaml` 不纳入版本对比）。
 
 ### 重新生成 Wire
 
