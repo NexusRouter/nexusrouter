@@ -98,11 +98,10 @@ func ChatProxy(cfg *config.Config, log *zap.Logger, rt *runtime.Store, col *metr
 		}
 
 		var (
-			base     *http.Transport
-			rev      *httputil.ReverseProxy
-			upID     string
-			upHost   string
-			director func(*http.Request)
+			base   *http.Transport
+			rev    *httputil.ReverseProxy
+			upID   string
+			upHost string
 		)
 
 		if db != nil && repository.UseDatabaseModelLibrary(db) {
@@ -120,23 +119,24 @@ func ChatProxy(cfg *config.Config, log *zap.Logger, rt *runtime.Store, col *metr
 				return
 			}
 			body = repository.RewriteChatBodyToProvider(body, tgt.ProviderModelCode)
-			transport := *baseTransport
-			transport.ResponseHeaderTimeout = tgt.Timeout
-			base = &transport
+			base = baseTransport.Clone()
+			base.ResponseHeaderTimeout = tgt.Timeout
 			upID = "inst:" + strconv.FormatInt(tgt.InstanceID, 10)
 			upHost = tgt.UpstreamHost
-			rev = httputil.NewSingleHostReverseProxy(tgt.BaseURL)
-			orig := rev.Director
-			director = func(req *http.Request) {
-				orig(req)
-				if tgt.APIKey != "" {
-					req.Header.Set("Authorization", "Bearer "+tgt.APIKey)
-				} else {
-					req.Header.Del("Authorization")
-				}
-				for _, h := range hopByHopHeaders {
-					req.Header.Del(h)
-				}
+			target := tgt.BaseURL
+			rev = &httputil.ReverseProxy{
+				Rewrite: func(pr *httputil.ProxyRequest) {
+					pr.SetURL(target)
+					pr.Out.Host = pr.In.Host
+					if tgt.APIKey != "" {
+						pr.Out.Header.Set("Authorization", "Bearer "+tgt.APIKey)
+					} else {
+						pr.Out.Header.Del("Authorization")
+					}
+					for _, h := range hopByHopHeaders {
+						pr.Out.Header.Del(h)
+					}
+				},
 			}
 		} else {
 			snap := rt.Snapshot()
@@ -149,19 +149,21 @@ func ChatProxy(cfg *config.Config, log *zap.Logger, rt *runtime.Store, col *metr
 			}
 			body = repository.RewriteChatCompletionsModelBody(body, db, upID)
 			base = baseTransport
-			rev = httputil.NewSingleHostReverseProxy(pu)
-			orig := rev.Director
-			director = func(req *http.Request) {
-				orig(req)
-				if !cfg.ForwardClientAuthorization {
-					req.Header.Del("Authorization")
-					if cfg.UpstreamAPIKey != "" {
-						req.Header.Set("Authorization", "Bearer "+cfg.UpstreamAPIKey)
+			target := pu
+			rev = &httputil.ReverseProxy{
+				Rewrite: func(pr *httputil.ProxyRequest) {
+					pr.SetURL(target)
+					pr.Out.Host = pr.In.Host
+					if !cfg.ForwardClientAuthorization {
+						pr.Out.Header.Del("Authorization")
+						if cfg.UpstreamAPIKey != "" {
+							pr.Out.Header.Set("Authorization", "Bearer "+cfg.UpstreamAPIKey)
+						}
 					}
-				}
-				for _, h := range hopByHopHeaders {
-					req.Header.Del(h)
-				}
+					for _, h := range hopByHopHeaders {
+						pr.Out.Header.Del(h)
+					}
+				},
 			}
 		}
 
@@ -170,7 +172,6 @@ func ChatProxy(cfg *config.Config, log *zap.Logger, rt *runtime.Store, col *metr
 		c.Request.Form = nil
 		c.Request.PostForm = nil
 
-		rev.Director = director
 		rev.Transport = base
 		rev.ModifyResponse = func(resp *http.Response) error {
 			for _, h := range hopByHopHeaders {

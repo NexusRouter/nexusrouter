@@ -1,10 +1,26 @@
-import { App, Button, Form, Input, InputNumber, Select, Space, Switch, Typography } from 'antd'
+import {
+  App,
+  Alert,
+  Button,
+  Card,
+  Collapse,
+  Form,
+  Input,
+  InputNumber,
+  Select,
+  Space,
+  Switch,
+  Tag,
+  Typography,
+} from 'antd'
+import axios from 'axios'
 import type { TFunction } from 'i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../services/api'
 import { isOperatorRole, useAuthStore } from '../stores/authStore'
+import { systemSettingsFieldLabelI18nKey } from '../utils/systemSettingsLabels'
 
 type SettingField = {
   key: string
@@ -15,7 +31,7 @@ type SettingField = {
 
 const LOG_LEVELS = ['info', 'error'] as const
 
-function formatMutability(t: TFunction, m: string): string {
+function formatMutabilityShort(t: TFunction, m: string): string {
   switch (m) {
     case 'hot_reload':
       return t('settings.mutabilityHotReload')
@@ -28,7 +44,72 @@ function formatMutability(t: TFunction, m: string): string {
   }
 }
 
-/** 系统设置：只读聚合 + 管理员可写 proxy_access_log。 */
+function mutabilityLong(t: TFunction, m: string, key: string): string {
+  if (m === 'hot_reload') {
+    if (key.startsWith('proxy_access_log_')) {
+      return t('settings.mutabilityLongHotReloadLog')
+    }
+    return t('settings.mutabilityLongHotReload')
+  }
+  if (m === 'restart_required') {
+    return t('settings.mutabilityLongRestart')
+  }
+  if (m === 'read_only') {
+    return t('settings.mutabilityLongReadOnly')
+  }
+  return ''
+}
+
+function fieldBusinessLabel(t: TFunction, key: string): string {
+  const suffix = systemSettingsFieldLabelI18nKey(key)
+  if (suffix) {
+    return t(`settings.fieldLabels.${suffix}`)
+  }
+  return t('settings.fieldLabels.unknown', { key })
+}
+
+function saveErrorMessage(err: unknown, fallback: string): string {
+  if (axios.isAxiosError(err)) {
+    const d = err.response?.data as { message?: string; error?: string } | undefined
+    const msg = d?.message ?? d?.error
+    if (msg && typeof msg === 'string' && msg.trim()) {
+      return msg
+    }
+  }
+  return fallback
+}
+
+function SettingStatusRow({ field, t }: { field: SettingField; t: TFunction }) {
+  const long = mutabilityLong(t, field.mutability, field.key)
+  const short = formatMutabilityShort(t, field.mutability)
+  const label = fieldBusinessLabel(t, field.key)
+  const tagColor =
+    field.mutability === 'hot_reload' ? 'green' : field.mutability === 'restart_required' ? 'orange' : 'default'
+
+  return (
+    <div className="border-b border-slate-200 py-3 last:border-b-0 dark:border-slate-600">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="min-w-0 font-medium text-slate-800 dark:text-slate-100">{label}</span>
+        <Tag color={tagColor}>{short}</Tag>
+      </div>
+      <div className="mt-1 text-sm text-slate-700 dark:text-slate-200">
+        <span className="text-slate-500 dark:text-slate-400">{t('settings.currentValueLabel')}</span>{' '}
+        <span className="break-all font-mono text-slate-800 dark:text-slate-100">{String(field.value)}</span>
+      </div>
+      <Typography.Paragraph type="secondary" className="!mb-0 !mt-1 text-xs leading-relaxed">
+        {long}
+        {field.hint ? (
+          <>
+            {' '}
+            <span className="text-slate-500 dark:text-slate-400">{field.hint}</span>
+          </>
+        ) : null}
+      </Typography.Paragraph>
+    </div>
+  )
+}
+
+/** 系统设置：运行状态 + 代理日志表单 + 高级键名（折叠）。 */
 export default function SystemSettingsPage() {
   const { message } = App.useApp()
   const { t } = useTranslation()
@@ -83,94 +164,154 @@ export default function SystemSettingsPage() {
       message.success(t('settings.saveOk'))
       void qc.invalidateQueries({ queryKey: ['system-settings'] })
     },
-    onError: () => message.error(t('settings.saveFail')),
+    onError: (err) => message.error(saveErrorMessage(err, t('settings.saveFail'))),
   })
 
+  const settings = q.data?.settings ?? []
+
   return (
-    <div className="max-w-3xl space-y-4">
-      <Typography.Title level={4}>{t('settings.title')}</Typography.Title>
-      <Typography.Paragraph type="secondary">{t('settings.intro')}</Typography.Paragraph>
-      {readOnly ? (
-        <Typography.Text type="warning">{t('settings.operatorReadOnly')}</Typography.Text>
-      ) : null}
-      {q.isError ? <Typography.Text type="danger">{t('settings.loadFail')}</Typography.Text> : null}
-      <div className="space-y-2 rounded border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/40">
-        {(q.data?.settings ?? []).map((s) => (
-          <div key={s.key} className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
-            <span className="font-medium text-slate-700 dark:text-slate-200">{t('settings.configKey')}:</span>
-            <code className="rounded bg-white px-1 dark:bg-slate-800">{s.key}</code>
-            <span className="font-medium text-slate-700 dark:text-slate-200">{t('settings.configValue')}:</span>
-            <span className="text-slate-600 dark:text-slate-300">{String(s.value)}</span>
-            <Typography.Text type="secondary">
-              ({formatMutability(t, s.mutability)})
-            </Typography.Text>
-            {s.hint ? <span className="w-full text-slate-500">{s.hint}</span> : null}
-          </div>
-        ))}
+    <div className="mx-auto max-w-5xl space-y-6">
+      <div>
+        <Typography.Title level={3} className="!mb-1">
+          {t('settings.title')}
+        </Typography.Title>
+        <Typography.Paragraph type="secondary" className="!mb-0 text-sm">
+          {t('settings.pageSubtitle')}
+        </Typography.Paragraph>
       </div>
-      <Typography.Title level={5}>{t('settings.save')}</Typography.Title>
-      <Form
-        form={form}
-        layout="vertical"
-        disabled={readOnly}
-        initialValues={{
-          enabled: false,
-          path: '',
-          level: 'info',
-          max_size_mb: 100,
-          max_backups: 3,
-          persist: true,
-        }}
-        onFinish={(v) =>
-          put.mutate({
-            proxy_access_log: {
-              enabled: v.enabled,
-              path: v.path,
-              level: v.level,
-              max_size_mb: v.max_size_mb,
-              max_backups: v.max_backups,
-            },
-            persist: v.persist,
-          })
-        }
-      >
-        <Form.Item name="enabled" label={t('settings.proxyLogEnabled')} valuePropName="checked">
-          <Switch />
-        </Form.Item>
-        <Form.Item name="path" label={t('settings.proxyLogPath')}>
-          <Input />
-        </Form.Item>
-        <Form.Item noStyle shouldUpdate>
-          {() => {
-            const lv = form.getFieldValue('level') as string | undefined
-            const base = LOG_LEVELS.map((value) => ({
-              value,
-              label: value === 'info' ? t('settings.logLevelInfo') : t('settings.logLevelError'),
-            }))
-            const extra =
-              lv && !(LOG_LEVELS as readonly string[]).includes(lv) ? [{ value: lv, label: lv }] : []
-            return (
-              <Form.Item name="level" label={t('settings.proxyLogLevel')}>
-                <Select className="w-full max-w-md" options={[...base, ...extra]} />
-              </Form.Item>
-            )
+
+      {readOnly ? (
+        <Alert type="warning" showIcon message={t('settings.operatorReadOnly')} />
+      ) : null}
+      {q.isError ? <Alert type="error" showIcon message={t('settings.loadFail')} /> : null}
+
+      <Card title={t('settings.sectionStatus')} loading={q.isLoading}>
+        {settings.length === 0 && !q.isLoading ? (
+          <Typography.Text type="secondary">{t('settings.statusEmpty')}</Typography.Text>
+        ) : (
+          <div className="px-0">
+            {settings.map((s) => (
+              <SettingStatusRow key={s.key} field={s} t={t} />
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card title={t('settings.sectionLog')}>
+        <Typography.Paragraph type="secondary" className="!mb-3 text-sm">
+          {t('settings.logFormLinkedHint')}
+        </Typography.Paragraph>
+        <Alert type="info" showIcon className="mb-4" message={t('settings.rotationNote')} />
+        <Form
+          form={form}
+          layout="vertical"
+          disabled={readOnly}
+          initialValues={{
+            enabled: false,
+            path: '',
+            level: 'info',
+            max_size_mb: 100,
+            max_backups: 3,
+            persist: true,
           }}
-        </Form.Item>
-        <Form.Item name="max_size_mb" label={t('settings.proxyLogMaxSize')}>
-          <InputNumber min={1} className="w-full max-w-md" />
-        </Form.Item>
-        <Form.Item name="max_backups" label={t('settings.proxyLogMaxBackups')}>
-          <InputNumber min={1} className="w-full max-w-md" />
-        </Form.Item>
-        <Form.Item name="persist" label={t('settings.persist')} valuePropName="checked">
-          <Switch defaultChecked />
-        </Form.Item>
-        <Space>
-          <Button type="primary" htmlType="submit" loading={put.isPending} disabled={readOnly}>
-            {t('settings.save')}
-          </Button>
-        </Space>
-      </Form>
+          onFinish={(v) =>
+            put.mutate({
+              proxy_access_log: {
+                enabled: v.enabled,
+                path: v.path,
+                level: v.level,
+                max_size_mb: v.max_size_mb,
+                max_backups: v.max_backups,
+              },
+              persist: v.persist,
+            })
+          }
+        >
+          <Form.Item name="enabled" label={t('settings.proxyLogEnabled')} valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item name="path" label={t('settings.proxyLogPath')}>
+            <Input />
+          </Form.Item>
+          <Form.Item noStyle shouldUpdate>
+            {() => {
+              const lv = form.getFieldValue('level') as string | undefined
+              const base = LOG_LEVELS.map((value) => ({
+                value,
+                label: value === 'info' ? t('settings.logLevelInfo') : t('settings.logLevelError'),
+              }))
+              const extra =
+                lv && !(LOG_LEVELS as readonly string[]).includes(lv) ? [{ value: lv, label: lv }] : []
+              return (
+                <Form.Item name="level" label={t('settings.proxyLogLevel')}>
+                  <Select className="w-full max-w-md" options={[...base, ...extra]} />
+                </Form.Item>
+              )
+            }}
+          </Form.Item>
+          <Form.Item
+            name="max_size_mb"
+            label={t('settings.proxyLogMaxSize')}
+            extra={<span className="text-xs text-slate-500">{t('settings.rotationFieldExtra')}</span>}
+          >
+            <InputNumber min={1} className="w-full max-w-md" />
+          </Form.Item>
+          <Form.Item
+            name="max_backups"
+            label={t('settings.proxyLogMaxBackups')}
+            extra={<span className="text-xs text-slate-500">{t('settings.rotationFieldExtra')}</span>}
+          >
+            <InputNumber min={1} className="w-full max-w-md" />
+          </Form.Item>
+          <Form.Item
+            name="persist"
+            label={t('settings.persist')}
+            valuePropName="checked"
+            extra={<span className="text-xs text-slate-500">{t('settings.persistHelp')}</span>}
+          >
+            <Switch defaultChecked />
+          </Form.Item>
+          <Space>
+            <Button type="primary" htmlType="submit" loading={put.isPending} disabled={readOnly}>
+              {t('settings.save')}
+            </Button>
+          </Space>
+        </Form>
+      </Card>
+
+      <Collapse
+        bordered={false}
+        className="bg-transparent"
+        items={[
+          {
+            key: 'advanced',
+            label: t('settings.sectionAdvanced'),
+            children: (
+              <div className="space-y-3">
+                <Typography.Paragraph type="secondary" className="!mb-0 text-sm">
+                  {t('settings.advancedIntro')}
+                </Typography.Paragraph>
+                {settings.map((s) => (
+                  <div
+                    key={`adv-${s.key}`}
+                    className="rounded border border-slate-200 bg-slate-50/80 p-3 text-sm dark:border-slate-600 dark:bg-slate-900/40"
+                  >
+                    <div className="font-medium text-slate-700 dark:text-slate-200">
+                      {fieldBusinessLabel(t, s.key)}
+                    </div>
+                    <code className="mt-1 block break-all text-xs text-slate-600 dark:text-slate-300">{s.key}</code>
+                    {s.hint ? (
+                      <Typography.Paragraph type="secondary" className="!mb-0 !mt-1 text-xs">
+                        {s.hint}
+                      </Typography.Paragraph>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ),
+          },
+        ]}
+      />
     </div>
   )
 }

@@ -41,7 +41,7 @@ export default function AdminLayout() {
     { key: 'logs', path: '/logs', labelKey: 'layout.menuLogs', icon: <ScrollText className="h-4 w-4" /> },
     {
       key: 'gateway-policy',
-      path: '/gateway',
+      path: '/gateway/policy',
       labelKey: 'layout.menuGatewayPolicy',
       icon: <SlidersHorizontal className="h-4 w-4" />,
     },

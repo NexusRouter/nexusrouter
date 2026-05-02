@@ -2,6 +2,7 @@ import {
   App,
   Avatar,
   Button,
+  Collapse,
   Drawer,
   Form,
   Input,
@@ -18,8 +19,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Boxes } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { SelectWithCreate } from '../components/SelectWithCreate'
+import { TermHint } from '../components/TermHint'
 import { api } from '../services/api'
 import { isOperatorRole, useAuthStore } from '../stores/authStore'
+import { ModelLibraryWizard } from './ModelLibraryWizard'
 
 /** 与 one-api / Simple Icons 风格一致的常见厂商图标（可被子段 logo 覆盖） */
 const VENDOR_LOGO_FALLBACK: Record<string, string> = {
@@ -81,6 +85,11 @@ function vendorAvatar(v: Pick<Vendor, 'logo' | 'vendor_code'>) {
   return <Avatar src={src} size={28} style={{ flexShrink: 0 }} />
 }
 
+function truncateUrl(s: string, max = 48) {
+  if (s.length <= max) return s
+  return `${s.slice(0, max)}…`
+}
+
 export default function ModelLibraryPage() {
   const { message } = App.useApp()
   const { t } = useTranslation()
@@ -122,7 +131,20 @@ export default function ModelLibraryPage() {
     return m
   }, [vendorsQ.data])
 
-  const [tab, setTab] = useState('vendors')
+  const baseById = useMemo(() => {
+    const m = new Map<number, Base>()
+    for (const b of basesQ.data ?? []) m.set(b.id, b)
+    return m
+  }, [basesQ.data])
+
+  const upById = useMemo(() => {
+    const m = new Map<number, Upstream>()
+    for (const u of upsQ.data ?? []) m.set(u.id, u)
+    return m
+  }, [upsQ.data])
+
+  const [advTab, setAdvTab] = useState('vendors')
+  const [wizardOpen, setWizardOpen] = useState(false)
   const [modal, setModal] = useState<{ kind: string; row?: unknown } | null>(null)
   const [syncOpen, setSyncOpen] = useState(false)
 
@@ -213,16 +235,19 @@ export default function ModelLibraryPage() {
         title: t('common.actions'),
         key: 'a',
         width: 160,
-        render: (_: unknown, r: Vendor) => (
-          <Space>
-            <Button type="link" size="small" disabled={readOnly} onClick={() => setModal({ kind: 'vendor-edit', row: r })}>
-              {t('common.edit')}
-            </Button>
-            <Button type="link" size="small" danger disabled={readOnly} onClick={() => delVendor.mutate(r.id)}>
-              {t('common.delete')}
-            </Button>
-          </Space>
-        ),
+        render: (_: unknown, r: Vendor) =>
+          readOnly ? (
+            '—'
+          ) : (
+            <Space>
+              <Button type="link" size="small" onClick={() => setModal({ kind: 'vendor-edit', row: r })}>
+                {t('common.edit')}
+              </Button>
+              <Button type="link" size="small" danger onClick={() => delVendor.mutate(r.id)}>
+                {t('common.delete')}
+              </Button>
+            </Space>
+          ),
       },
     ],
     [t, readOnly, delVendor],
@@ -250,16 +275,19 @@ export default function ModelLibraryPage() {
         title: t('common.actions'),
         key: 'a',
         width: 160,
-        render: (_: unknown, r: Base) => (
-          <Space>
-            <Button type="link" size="small" disabled={readOnly} onClick={() => setModal({ kind: 'base-edit', row: r })}>
-              {t('common.edit')}
-            </Button>
-            <Button type="link" size="small" danger disabled={readOnly} onClick={() => delBase.mutate(r.id)}>
-              {t('common.delete')}
-            </Button>
-          </Space>
-        ),
+        render: (_: unknown, r: Base) =>
+          readOnly ? (
+            '—'
+          ) : (
+            <Space>
+              <Button type="link" size="small" onClick={() => setModal({ kind: 'base-edit', row: r })}>
+                {t('common.edit')}
+              </Button>
+              <Button type="link" size="small" danger onClick={() => delBase.mutate(r.id)}>
+                {t('common.delete')}
+              </Button>
+            </Space>
+          ),
       },
     ],
     [t, readOnly, delBase],
@@ -295,19 +323,126 @@ export default function ModelLibraryPage() {
         title: t('common.actions'),
         key: 'a',
         width: 160,
-        render: (_: unknown, r: Upstream) => (
-          <Space>
-            <Button type="link" size="small" disabled={readOnly} onClick={() => setModal({ kind: 'upstream-edit', row: r })}>
-              {t('common.edit')}
-            </Button>
-            <Button type="link" size="small" danger disabled={readOnly} onClick={() => delUp.mutate(r.id)}>
-              {t('common.delete')}
-            </Button>
-          </Space>
-        ),
+        render: (_: unknown, r: Upstream) =>
+          readOnly ? (
+            '—'
+          ) : (
+            <Space>
+              <Button type="link" size="small" onClick={() => setModal({ kind: 'upstream-edit', row: r })}>
+                {t('common.edit')}
+              </Button>
+              <Button type="link" size="small" danger onClick={() => delUp.mutate(r.id)}>
+                {t('common.delete')}
+              </Button>
+            </Space>
+          ),
       },
     ],
     [t, readOnly, delUp, vendorById],
+  )
+
+  const instColsMain = useMemo(
+    () => [
+      { title: t('pages.modelLibrary.instanceName'), dataIndex: 'instance_name', key: 'instance_name', width: 160 },
+      {
+        title: (
+          <span>
+            {t('pages.modelLibrary.modelCode')}
+            <TermHint glossaryKey="pages.modelLibrary.glossary.modelCode" />
+          </span>
+        ),
+        key: 'model_code',
+        width: 180,
+        render: (_: unknown, r: Instance) => {
+          const b = baseById.get(r.base_model_id)
+          return b?.model_code ?? r.base_model_id
+        },
+      },
+      {
+        title: (
+          <span>
+            {t('pages.modelLibrary.colLogicalModel')}
+            <TermHint glossaryKey="pages.modelLibrary.glossary.base" />
+          </span>
+        ),
+        key: 'logical',
+        render: (_: unknown, r: Instance) => {
+          const b = baseById.get(r.base_model_id)
+          return b ? `${b.model_name}` : r.base_model_id
+        },
+      },
+      {
+        title: (
+          <span>
+            {t('pages.modelLibrary.colVendorCol')}
+            <TermHint glossaryKey="pages.modelLibrary.glossary.vendor" />
+          </span>
+        ),
+        key: 'vendor',
+        render: (_: unknown, r: Instance) => {
+          const v = vendorById.get(r.vendor_id)
+          return v ? (
+            <Space>
+              {vendorAvatar(v)}
+              <span>{v.vendor_name}</span>
+            </Space>
+          ) : (
+            r.vendor_id
+          )
+        },
+      },
+      {
+        title: (
+          <span>
+            {t('pages.modelLibrary.colUpstreamSummary')}
+            <TermHint glossaryKey="pages.modelLibrary.glossary.upstream" />
+          </span>
+        ),
+        key: 'up',
+        ellipsis: true,
+        render: (_: unknown, r: Instance) => {
+          const u = upById.get(r.upstream_id)
+          return u ? `${u.upstream_name} — ${truncateUrl(u.base_url)}` : r.upstream_id
+        },
+      },
+      {
+        title: (
+          <span>
+            {t('pages.modelLibrary.providerModel')}
+            <TermHint glossaryKey="pages.modelLibrary.glossary.providerModel" />
+          </span>
+        ),
+        dataIndex: 'provider_model_code',
+        key: 'provider_model_code',
+        width: 160,
+      },
+      {
+        title: t('pages.modelLibrary.status'),
+        dataIndex: 'status',
+        width: 80,
+        render: (s: number) => (s === 1 ? t('pages.modelLibrary.stateOn') : t('pages.modelLibrary.stateOff')),
+      },
+      {
+        title: t('common.actions'),
+        key: 'a',
+        width: 160,
+        fixed: 'right' as const,
+        render: (_: unknown, r: Instance) =>
+          readOnly ? (
+            '—'
+          ) : (
+            <Space>
+              <Button type="link" size="small" onClick={() => setModal({ kind: 'instance-edit', row: r })}>
+                {t('common.edit')}
+              </Button>
+              <Button type="link" size="small" danger onClick={() => delInst.mutate(r.id)}>
+                {t('common.delete')}
+              </Button>
+            </Space>
+          ),
+      },
+    ],
+    [t, readOnly, delInst, baseById, vendorById, upById],
   )
 
   const instCols = useMemo(
@@ -328,19 +463,42 @@ export default function ModelLibraryPage() {
         title: t('common.actions'),
         key: 'a',
         width: 160,
-        render: (_: unknown, r: Instance) => (
-          <Space>
-            <Button type="link" size="small" disabled={readOnly} onClick={() => setModal({ kind: 'instance-edit', row: r })}>
-              {t('common.edit')}
-            </Button>
-            <Button type="link" size="small" danger disabled={readOnly} onClick={() => delInst.mutate(r.id)}>
-              {t('common.delete')}
-            </Button>
-          </Space>
-        ),
+        render: (_: unknown, r: Instance) =>
+          readOnly ? (
+            '—'
+          ) : (
+            <Space>
+              <Button type="link" size="small" onClick={() => setModal({ kind: 'instance-edit', row: r })}>
+                {t('common.edit')}
+              </Button>
+              <Button type="link" size="small" danger onClick={() => delInst.mutate(r.id)}>
+                {t('common.delete')}
+              </Button>
+            </Space>
+          ),
       },
     ],
     [t, readOnly, delInst],
+  )
+
+  const emptyMain = useMemo(
+    () =>
+      readOnly ? (
+        <Typography.Text type="secondary">{t('pages.modelLibrary.emptyInstancesTitle')}</Typography.Text>
+      ) : (
+        <div className="py-8 text-center">
+          <Typography.Title level={5} className="!mb-2">
+            {t('pages.modelLibrary.emptyInstancesTitle')}
+          </Typography.Title>
+          <Typography.Paragraph type="secondary" className="!mb-4 max-w-md mx-auto">
+            {t('pages.modelLibrary.emptyInstancesHint')}
+          </Typography.Paragraph>
+          <Button type="primary" onClick={() => setWizardOpen(true)}>
+            {t('pages.modelLibrary.primaryConfigure')}
+          </Button>
+        </div>
+      ),
+    [t, readOnly],
   )
 
   return (
@@ -352,77 +510,160 @@ export default function ModelLibraryPage() {
             {t('pages.modelLibrary.title')}
           </Typography.Title>
           <Typography.Paragraph type="secondary" className="!mb-0 max-w-3xl text-sm">
-            {t('pages.modelLibrary.hintAgg')}
+            {t('pages.modelLibrary.hintUser')}
           </Typography.Paragraph>
         </div>
         <Space wrap>
-          <Button onClick={() => setSyncOpen(true)} disabled={readOnly}>
-            {t('pages.modelLibrary.syncFromUpstream')}
-          </Button>
+          {!readOnly ? (
+            <Button type="primary" onClick={() => setWizardOpen(true)}>
+              {t('pages.modelLibrary.primaryConfigure')}
+            </Button>
+          ) : null}
+          {!readOnly ? (
+            <Button onClick={() => setSyncOpen(true)}>{t('pages.modelLibrary.syncFromUpstream')}</Button>
+          ) : null}
         </Space>
       </div>
 
-      <Tabs
-        activeKey={tab}
-        onChange={setTab}
+      <Collapse
+        size="small"
         items={[
           {
-            key: 'vendors',
-            label: t('pages.modelLibrary.tabVendors'),
+            key: 'tech',
+            label: t('pages.modelLibrary.technicalDetails'),
             children: (
-              <div className="space-y-3">
-                <Button type="primary" disabled={readOnly} onClick={() => setModal({ kind: 'vendor-new' })}>
-                  {t('pages.modelLibrary.addVendor')}
-                </Button>
-                <Table
-                  rowKey="id"
-                  loading={vendorsQ.isLoading}
-                  dataSource={vendorsQ.data}
-                  columns={vendorCols}
-                  pagination={false}
-                  scroll={{ x: true }}
-                />
-              </div>
-            ),
-          },
-          {
-            key: 'bases',
-            label: t('pages.modelLibrary.tabBases'),
-            children: (
-              <div className="space-y-3">
-                <Button type="primary" disabled={readOnly} onClick={() => setModal({ kind: 'base-new' })}>
-                  {t('pages.modelLibrary.addBase')}
-                </Button>
-                <Table rowKey="id" loading={basesQ.isLoading} dataSource={basesQ.data} columns={baseCols} pagination={false} scroll={{ x: true }} />
-              </div>
-            ),
-          },
-          {
-            key: 'upstreams',
-            label: t('pages.modelLibrary.tabUpstreams'),
-            children: (
-              <div className="space-y-3">
-                <Button type="primary" disabled={readOnly} onClick={() => setModal({ kind: 'upstream-new' })}>
-                  {t('pages.modelLibrary.addUpstream')}
-                </Button>
-                <Table rowKey="id" loading={upsQ.isLoading} dataSource={upsQ.data} columns={upCols} pagination={false} scroll={{ x: true }} />
-              </div>
-            ),
-          },
-          {
-            key: 'instances',
-            label: t('pages.modelLibrary.tabInstances'),
-            children: (
-              <div className="space-y-3">
-                <Button type="primary" disabled={readOnly} onClick={() => setModal({ kind: 'instance-new' })}>
-                  {t('pages.modelLibrary.addInstance')}
-                </Button>
-                <Table rowKey="id" loading={instQ.isLoading} dataSource={instQ.data} columns={instCols} pagination={false} scroll={{ x: true }} />
-              </div>
+              <Typography.Paragraph type="secondary" className="!mb-0 text-sm">
+                {t('pages.modelLibrary.hintAgg')}
+              </Typography.Paragraph>
             ),
           },
         ]}
       />
+
+      <div>
+        <Typography.Title level={5} className="!mb-3">
+          {t('pages.modelLibrary.mainListTitle')}
+        </Typography.Title>
+        {!readOnly ? (
+          <div className="mb-3 flex flex-wrap gap-2">
+            <Button type="primary" onClick={() => setModal({ kind: 'instance-new' })}>
+              {t('pages.modelLibrary.addInstance')}
+            </Button>
+          </div>
+        ) : null}
+        <Table
+          rowKey="id"
+          loading={instQ.isLoading}
+          dataSource={instQ.data}
+          columns={instColsMain}
+          pagination={false}
+          scroll={{ x: true }}
+          locale={{ emptyText: emptyMain }}
+        />
+      </div>
+
+      <Collapse
+        items={[
+          {
+            key: 'adv',
+            label: t('pages.modelLibrary.advancedMaintenance'),
+            children: (
+              <Tabs
+                activeKey={advTab}
+                onChange={setAdvTab}
+                items={[
+                  {
+                    key: 'vendors',
+                    label: t('pages.modelLibrary.tabVendors'),
+                    children: (
+                      <div className="space-y-3">
+                        {!readOnly ? (
+                          <Button type="primary" onClick={() => setModal({ kind: 'vendor-new' })}>
+                            {t('pages.modelLibrary.addVendor')}
+                          </Button>
+                        ) : null}
+                        <Table
+                          rowKey="id"
+                          loading={vendorsQ.isLoading}
+                          dataSource={vendorsQ.data}
+                          columns={vendorCols}
+                          pagination={false}
+                          scroll={{ x: true }}
+                        />
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'bases',
+                    label: t('pages.modelLibrary.tabBases'),
+                    children: (
+                      <div className="space-y-3">
+                        {!readOnly ? (
+                          <Button type="primary" onClick={() => setModal({ kind: 'base-new' })}>
+                            {t('pages.modelLibrary.addBase')}
+                          </Button>
+                        ) : null}
+                        <Table
+                          rowKey="id"
+                          loading={basesQ.isLoading}
+                          dataSource={basesQ.data}
+                          columns={baseCols}
+                          pagination={false}
+                          scroll={{ x: true }}
+                        />
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'upstreams',
+                    label: t('pages.modelLibrary.tabUpstreams'),
+                    children: (
+                      <div className="space-y-3">
+                        {!readOnly ? (
+                          <Button type="primary" onClick={() => setModal({ kind: 'upstream-new' })}>
+                            {t('pages.modelLibrary.addUpstream')}
+                          </Button>
+                        ) : null}
+                        <Table
+                          rowKey="id"
+                          loading={upsQ.isLoading}
+                          dataSource={upsQ.data}
+                          columns={upCols}
+                          pagination={false}
+                          scroll={{ x: true }}
+                        />
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'instances',
+                    label: t('pages.modelLibrary.tabInstances'),
+                    children: (
+                      <div className="space-y-3">
+                        {!readOnly ? (
+                          <Button type="primary" onClick={() => setModal({ kind: 'instance-new' })}>
+                            {t('pages.modelLibrary.addInstance')}
+                          </Button>
+                        ) : null}
+                        <Table
+                          rowKey="id"
+                          loading={instQ.isLoading}
+                          dataSource={instQ.data}
+                          columns={instCols}
+                          pagination={false}
+                          scroll={{ x: true }}
+                        />
+                      </div>
+                    ),
+                  },
+                ]}
+              />
+            ),
+          },
+        ]}
+      />
+
+      <ModelLibraryWizard open={wizardOpen} onClose={() => setWizardOpen(false)} />
 
       <EditModal
         open={modal !== null}
@@ -500,6 +741,204 @@ function SyncForm({
   )
 }
 
+type QuickKind = 'vendor' | 'base' | 'upstream'
+
+function NestedQuickCreateModal({
+  open,
+  kind,
+  onClose,
+  onCreated,
+  vendors,
+  defaultVendorId,
+  readOnly,
+}: {
+  open: boolean
+  kind: QuickKind | null
+  onClose: () => void
+  onCreated: (row: { id: number }) => void
+  vendors: Vendor[]
+  defaultVendorId?: number
+  readOnly: boolean
+}) {
+  const { t } = useTranslation()
+  const { message } = App.useApp()
+  const qc = useQueryClient()
+  const [form] = Form.useForm()
+
+  useEffect(() => {
+    if (!open || !kind) return
+    form.resetFields()
+    if (kind === 'vendor') form.setFieldsValue({ vendor_type: 1, status: 1 })
+    if (kind === 'base') form.setFieldsValue({ model_type: 1, sort: 0, status: 1 })
+    if (kind === 'upstream')
+      form.setFieldsValue({ timeout: 30, max_concurrent: 100, status: 1, vendor_id: defaultVendorId })
+  }, [open, kind, defaultVendorId, form])
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const v = await form.validateFields()
+      if (kind === 'vendor') {
+        const { data } = await api.post<Vendor>('/api/admin/v1/model-library/vendors', v)
+        return data
+      }
+      if (kind === 'base') {
+        const { data } = await api.post<Base>('/api/admin/v1/model-library/bases', v)
+        return data
+      }
+      if (kind === 'upstream') {
+        if (v.vendor_id == null) {
+          throw new Error('vendor')
+        }
+        const { data } = await api.post<Upstream>('/api/admin/v1/model-library/upstreams', v)
+        return data
+      }
+      throw new Error('kind')
+    },
+    onSuccess: (data) => {
+      message.success(t('common.saved'))
+      qc.invalidateQueries({ queryKey: ['ml-vendors'] })
+      qc.invalidateQueries({ queryKey: ['ml-bases'] })
+      qc.invalidateQueries({ queryKey: ['ml-upstreams'] })
+      qc.invalidateQueries({ queryKey: ['ml-instances'] })
+      onCreated(data)
+      onClose()
+    },
+    onError: (err: unknown) => {
+      if (err instanceof Error && err.message === 'vendor') {
+        message.warning(t('pages.modelLibrary.needVendorBeforeUpstream'))
+        return
+      }
+      message.error(t('common.saveFailed'))
+    },
+  })
+
+  if (!kind) return null
+
+  const title =
+    kind === 'vendor'
+      ? t('pages.modelLibrary.quickCreateTitleVendor')
+      : kind === 'base'
+        ? t('pages.modelLibrary.quickCreateTitleBase')
+        : t('pages.modelLibrary.quickCreateTitleUpstream')
+
+  return (
+    <Modal
+      title={title}
+      open={open}
+      onCancel={onClose}
+      footer={null}
+      destroyOnClose
+      width={480}
+    >
+      <Form form={form} layout="vertical" disabled={readOnly}>
+        {kind === 'vendor' && (
+          <>
+            <Form.Item name="vendor_name" label={t('pages.modelLibrary.vendorName')} rules={[{ required: true }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="vendor_type" label={t('pages.modelLibrary.vendorType')} rules={[{ required: true }]} initialValue={1}>
+              <Select
+                options={[
+                  { value: 1, label: t('pages.modelLibrary.typeOfficial') },
+                  { value: 2, label: t('pages.modelLibrary.typeThirdParty') },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item name="vendor_code" label={t('pages.modelLibrary.vendorCode')} rules={[{ required: true }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="logo" label={t('pages.modelLibrary.logoUrl')}>
+              <Input placeholder="https://..." />
+            </Form.Item>
+            <Form.Item name="status" label={t('pages.modelLibrary.status')} initialValue={1}>
+              <Select
+                options={[
+                  { value: 1, label: t('pages.modelLibrary.stateOn') },
+                  { value: 0, label: t('pages.modelLibrary.stateOff') },
+                ]}
+              />
+            </Form.Item>
+          </>
+        )}
+        {kind === 'base' && (
+          <>
+            <Form.Item name="model_name" label={t('pages.modelLibrary.modelNameCol')} rules={[{ required: true }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="model_code" label={t('pages.modelLibrary.modelCode')} rules={[{ required: true }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="model_type" label={t('pages.modelLibrary.modelType')} rules={[{ required: true }]} initialValue={1}>
+              <Select
+                options={[
+                  { value: 1, label: t('pages.modelLibrary.mtchat') },
+                  { value: 2, label: t('pages.modelLibrary.mtembedding') },
+                  { value: 3, label: t('pages.modelLibrary.mtimage') },
+                  { value: 4, label: t('pages.modelLibrary.mtaudio') },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item name="capability" label={t('pages.modelLibrary.capabilityJson')}>
+              <Input.TextArea rows={3} placeholder="{}" />
+            </Form.Item>
+            <Form.Item name="sort" label={t('pages.modelLibrary.sort')} initialValue={0}>
+              <InputNumber className="w-full" />
+            </Form.Item>
+            <Form.Item name="status" label={t('pages.modelLibrary.status')} initialValue={1}>
+              <Select
+                options={[
+                  { value: 1, label: t('pages.modelLibrary.stateOn') },
+                  { value: 0, label: t('pages.modelLibrary.stateOff') },
+                ]}
+              />
+            </Form.Item>
+          </>
+        )}
+        {kind === 'upstream' && (
+          <>
+            <Form.Item name="vendor_id" label={t('pages.modelLibrary.vendor')} rules={[{ required: true }]}>
+              <Select
+                options={vendors.map((v) => ({
+                  value: v.id,
+                  label: `${v.vendor_code} — ${v.vendor_name}`,
+                }))}
+              />
+            </Form.Item>
+            <Form.Item name="upstream_name" label={t('pages.modelLibrary.upstreamName')} rules={[{ required: true }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="base_url" label={t('pages.modelLibrary.baseUrl')} rules={[{ required: true }]}>
+              <Input placeholder="https://api.openai.com" />
+            </Form.Item>
+            <Form.Item name="api_key" label={t('pages.modelLibrary.apiKey')}>
+              <Input.Password placeholder={t('pages.modelLibrary.apiKeyHint')} autoComplete="off" />
+            </Form.Item>
+            <Form.Item name="timeout" label={t('pages.modelLibrary.timeoutSec')} initialValue={30}>
+              <InputNumber min={1} className="w-full" />
+            </Form.Item>
+            <Form.Item name="max_concurrent" label={t('pages.modelLibrary.maxConcurrent')} initialValue={100}>
+              <InputNumber min={1} className="w-full" />
+            </Form.Item>
+            <Form.Item name="status" label={t('pages.modelLibrary.status')} initialValue={1}>
+              <Select
+                options={[
+                  { value: 1, label: t('pages.modelLibrary.stateOn') },
+                  { value: 0, label: t('pages.modelLibrary.stateOff') },
+                ]}
+              />
+            </Form.Item>
+          </>
+        )}
+      </Form>
+      <div className="mt-4 flex justify-end">
+        <Button type="primary" disabled={readOnly} loading={save.isPending} onClick={() => save.mutate()}>
+          {t('common.save')}
+        </Button>
+      </div>
+    </Modal>
+  )
+}
+
 function EditModal({
   open,
   modal,
@@ -522,6 +961,8 @@ function EditModal({
   const { t } = useTranslation()
   const { message } = App.useApp()
   const [form] = Form.useForm()
+  const [quickKind, setQuickKind] = useState<QuickKind | null>(null)
+  const vendorIdWatched = Form.useWatch('vendor_id', form)
 
   useEffect(() => {
     if (!open || !modal) return
@@ -573,181 +1014,263 @@ function EditModal({
     return ''
   }, [modal?.kind, t])
 
+  const baseOptions = bases.map((b) => ({
+    value: b.id,
+    label: `${b.model_code} — ${b.model_name}`,
+  }))
+  const vendorOptions = vendors.map((v) => ({
+    value: v.id,
+    label: `${v.vendor_code} — ${v.vendor_name}`,
+  }))
+  const upstreamOptions = upstreams.map((u) => ({
+    value: u.id,
+    label: `${u.id} — ${u.upstream_name}`,
+  }))
+
+  const instanceMode = modal?.kind === 'instance-new' || modal?.kind === 'instance-edit'
+
   return (
-    <Drawer
-      title={title}
-      open={open}
-      onClose={onClose}
-      width={480}
-      destroyOnClose
-      extra={
-        <Button type="primary" disabled={readOnly} loading={save.isPending} onClick={() => save.mutate()}>
-          {t('common.save')}
-        </Button>
-      }
-    >
-      <Form form={form} layout="vertical" disabled={readOnly}>
-        {(modal?.kind === 'vendor-new' || modal?.kind === 'vendor-edit') && (
-          <>
-            <Form.Item name="vendor_name" label={t('pages.modelLibrary.vendorName')} rules={[{ required: true }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="vendor_type" label={t('pages.modelLibrary.vendorType')} rules={[{ required: true }]}>
-              <Select
-                options={[
-                  { value: 1, label: t('pages.modelLibrary.typeOfficial') },
-                  { value: 2, label: t('pages.modelLibrary.typeThirdParty') },
-                ]}
-              />
-            </Form.Item>
-            <Form.Item name="vendor_code" label={t('pages.modelLibrary.vendorCode')} rules={[{ required: true }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="logo" label={t('pages.modelLibrary.logoUrl')}>
-              <Input placeholder="https://..." />
-            </Form.Item>
-            <Form.Item name="status" label={t('pages.modelLibrary.status')} initialValue={1}>
-              <Select
-                options={[
-                  { value: 1, label: t('pages.modelLibrary.stateOn') },
-                  { value: 0, label: t('pages.modelLibrary.stateOff') },
-                ]}
-              />
-            </Form.Item>
-          </>
-        )}
-        {(modal?.kind === 'base-new' || modal?.kind === 'base-edit') && (
-          <>
-            <Form.Item name="model_name" label={t('pages.modelLibrary.modelNameCol')} rules={[{ required: true }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="model_code" label={t('pages.modelLibrary.modelCode')} rules={[{ required: true }]}>
-              <Input disabled={modal?.kind === 'base-edit'} />
-            </Form.Item>
-            <Form.Item name="model_type" label={t('pages.modelLibrary.modelType')} rules={[{ required: true }]} initialValue={1}>
-              <Select
-                options={[
-                  { value: 1, label: t('pages.modelLibrary.mtchat') },
-                  { value: 2, label: t('pages.modelLibrary.mtembedding') },
-                  { value: 3, label: t('pages.modelLibrary.mtimage') },
-                  { value: 4, label: t('pages.modelLibrary.mtaudio') },
-                ]}
-              />
-            </Form.Item>
-            <Form.Item name="capability" label={t('pages.modelLibrary.capabilityJson')}>
-              <Input.TextArea rows={3} placeholder="{}" />
-            </Form.Item>
-            <Form.Item name="sort" label={t('pages.modelLibrary.sort')} initialValue={0}>
-              <InputNumber className="w-full" />
-            </Form.Item>
-            <Form.Item name="status" label={t('pages.modelLibrary.status')} initialValue={1}>
-              <Select
-                options={[
-                  { value: 1, label: t('pages.modelLibrary.stateOn') },
-                  { value: 0, label: t('pages.modelLibrary.stateOff') },
-                ]}
-              />
-            </Form.Item>
-          </>
-        )}
-        {(modal?.kind === 'upstream-new' || modal?.kind === 'upstream-edit') && (
-          <>
-            <Form.Item name="vendor_id" label={t('pages.modelLibrary.vendor')} rules={[{ required: true }]}>
-              <Select
-                options={vendors.map((v) => ({
-                  value: v.id,
-                  label: `${v.vendor_code} — ${v.vendor_name}`,
-                }))}
-              />
-            </Form.Item>
-            <Form.Item name="upstream_name" label={t('pages.modelLibrary.upstreamName')} rules={[{ required: true }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="base_url" label={t('pages.modelLibrary.baseUrl')} rules={[{ required: true }]}>
-              <Input placeholder="https://api.openai.com" />
-            </Form.Item>
-            <Form.Item name="api_key" label={t('pages.modelLibrary.apiKey')}>
-              <Input.Password placeholder={t('pages.modelLibrary.apiKeyHint')} autoComplete="off" />
-            </Form.Item>
-            <Form.Item name="timeout" label={t('pages.modelLibrary.timeoutSec')} initialValue={30}>
-              <InputNumber min={1} className="w-full" />
-            </Form.Item>
-            <Form.Item name="max_concurrent" label={t('pages.modelLibrary.maxConcurrent')} initialValue={100}>
-              <InputNumber min={1} className="w-full" />
-            </Form.Item>
-            <Form.Item name="status" label={t('pages.modelLibrary.status')} initialValue={1}>
-              <Select
-                options={[
-                  { value: 1, label: t('pages.modelLibrary.stateOn') },
-                  { value: 0, label: t('pages.modelLibrary.stateOff') },
-                ]}
-              />
-            </Form.Item>
-          </>
-        )}
-        {(modal?.kind === 'instance-new' || modal?.kind === 'instance-edit') && (
-          <>
-            <Form.Item name="base_model_id" label={t('pages.modelLibrary.baseModelId')} rules={[{ required: true }]}>
-              <Select
-                options={bases.map((b) => ({
-                  value: b.id,
-                  label: `${b.model_code} — ${b.model_name}`,
-                }))}
-              />
-            </Form.Item>
-            <Form.Item name="vendor_id" label={t('pages.modelLibrary.vendor')} rules={[{ required: true }]}>
-              <Select
-                options={vendors.map((v) => ({
-                  value: v.id,
-                  label: `${v.vendor_code} — ${v.vendor_name}`,
-                }))}
-              />
-            </Form.Item>
-            <Form.Item name="upstream_id" label={t('pages.modelLibrary.upstreamRowId')} rules={[{ required: true }]}>
-              <Select
-                options={upstreams.map((u) => ({
-                  value: u.id,
-                  label: `${u.id} — ${u.upstream_name}`,
-                }))}
-              />
-            </Form.Item>
-            <Form.Item name="instance_name" label={t('pages.modelLibrary.instanceName')} rules={[{ required: true }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="provider_model_code" label={t('pages.modelLibrary.providerModel')} rules={[{ required: true }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="weight" label={t('pages.modelLibrary.weight')} initialValue={10}>
-              <InputNumber min={1} className="w-full" />
-            </Form.Item>
-            <Form.Item name="priority" label={t('pages.modelLibrary.priority')} initialValue={1}>
-              <Select
-                options={[
-                  { value: 1, label: t('pages.modelLibrary.prioHigh') },
-                  { value: 2, label: t('pages.modelLibrary.prioMid') },
-                  { value: 3, label: t('pages.modelLibrary.prioLow') },
-                ]}
-              />
-            </Form.Item>
-            <Form.Item name="is_official" label={t('pages.modelLibrary.official')} initialValue={0}>
-              <Select
-                options={[
-                  { value: 1, label: t('pages.modelLibrary.yes') },
-                  { value: 0, label: t('pages.modelLibrary.no') },
-                ]}
-              />
-            </Form.Item>
-            <Form.Item name="status" label={t('pages.modelLibrary.status')} initialValue={1}>
-              <Select
-                options={[
-                  { value: 1, label: t('pages.modelLibrary.stateOn') },
-                  { value: 0, label: t('pages.modelLibrary.stateOff') },
-                ]}
-              />
-            </Form.Item>
-          </>
-        )}
-      </Form>
-    </Drawer>
+    <>
+      <Drawer
+        title={title}
+        open={open}
+        onClose={onClose}
+        width={480}
+        destroyOnClose
+        extra={
+          <Button type="primary" disabled={readOnly} loading={save.isPending} onClick={() => save.mutate()}>
+            {t('common.save')}
+          </Button>
+        }
+      >
+        <Form form={form} layout="vertical" disabled={readOnly}>
+          {(modal?.kind === 'vendor-new' || modal?.kind === 'vendor-edit') && (
+            <>
+              <Form.Item name="vendor_name" label={t('pages.modelLibrary.vendorName')} rules={[{ required: true }]}>
+                <Input />
+              </Form.Item>
+              <Form.Item name="vendor_type" label={t('pages.modelLibrary.vendorType')} rules={[{ required: true }]}>
+                <Select
+                  options={[
+                    { value: 1, label: t('pages.modelLibrary.typeOfficial') },
+                    { value: 2, label: t('pages.modelLibrary.typeThirdParty') },
+                  ]}
+                />
+              </Form.Item>
+              <Form.Item name="vendor_code" label={t('pages.modelLibrary.vendorCode')} rules={[{ required: true }]}>
+                <Input />
+              </Form.Item>
+              <Form.Item name="logo" label={t('pages.modelLibrary.logoUrl')}>
+                <Input placeholder="https://..." />
+              </Form.Item>
+              <Form.Item name="status" label={t('pages.modelLibrary.status')} initialValue={1}>
+                <Select
+                  options={[
+                    { value: 1, label: t('pages.modelLibrary.stateOn') },
+                    { value: 0, label: t('pages.modelLibrary.stateOff') },
+                  ]}
+                />
+              </Form.Item>
+            </>
+          )}
+          {(modal?.kind === 'base-new' || modal?.kind === 'base-edit') && (
+            <>
+              <Form.Item name="model_name" label={t('pages.modelLibrary.modelNameCol')} rules={[{ required: true }]}>
+                <Input />
+              </Form.Item>
+              <Form.Item name="model_code" label={t('pages.modelLibrary.modelCode')} rules={[{ required: true }]}>
+                <Input disabled={modal?.kind === 'base-edit'} />
+              </Form.Item>
+              <Form.Item name="model_type" label={t('pages.modelLibrary.modelType')} rules={[{ required: true }]} initialValue={1}>
+                <Select
+                  options={[
+                    { value: 1, label: t('pages.modelLibrary.mtchat') },
+                    { value: 2, label: t('pages.modelLibrary.mtembedding') },
+                    { value: 3, label: t('pages.modelLibrary.mtimage') },
+                    { value: 4, label: t('pages.modelLibrary.mtaudio') },
+                  ]}
+                />
+              </Form.Item>
+              <Form.Item name="capability" label={t('pages.modelLibrary.capabilityJson')}>
+                <Input.TextArea rows={3} placeholder="{}" />
+              </Form.Item>
+              <Form.Item name="sort" label={t('pages.modelLibrary.sort')} initialValue={0}>
+                <InputNumber className="w-full" />
+              </Form.Item>
+              <Form.Item name="status" label={t('pages.modelLibrary.status')} initialValue={1}>
+                <Select
+                  options={[
+                    { value: 1, label: t('pages.modelLibrary.stateOn') },
+                    { value: 0, label: t('pages.modelLibrary.stateOff') },
+                  ]}
+                />
+              </Form.Item>
+            </>
+          )}
+          {(modal?.kind === 'upstream-new' || modal?.kind === 'upstream-edit') && (
+            <>
+              <Form.Item name="vendor_id" label={t('pages.modelLibrary.vendor')} rules={[{ required: true }]}>
+                <Select
+                  options={vendors.map((v) => ({
+                    value: v.id,
+                    label: `${v.vendor_code} — ${v.vendor_name}`,
+                  }))}
+                />
+              </Form.Item>
+              <Form.Item name="upstream_name" label={t('pages.modelLibrary.upstreamName')} rules={[{ required: true }]}>
+                <Input />
+              </Form.Item>
+              <Form.Item name="base_url" label={t('pages.modelLibrary.baseUrl')} rules={[{ required: true }]}>
+                <Input placeholder="https://api.openai.com" />
+              </Form.Item>
+              <Form.Item name="api_key" label={t('pages.modelLibrary.apiKey')}>
+                <Input.Password placeholder={t('pages.modelLibrary.apiKeyHint')} autoComplete="off" />
+              </Form.Item>
+              <Form.Item name="timeout" label={t('pages.modelLibrary.timeoutSec')} initialValue={30}>
+                <InputNumber min={1} className="w-full" />
+              </Form.Item>
+              <Form.Item name="max_concurrent" label={t('pages.modelLibrary.maxConcurrent')} initialValue={100}>
+                <InputNumber min={1} className="w-full" />
+              </Form.Item>
+              <Form.Item name="status" label={t('pages.modelLibrary.status')} initialValue={1}>
+                <Select
+                  options={[
+                    { value: 1, label: t('pages.modelLibrary.stateOn') },
+                    { value: 0, label: t('pages.modelLibrary.stateOff') },
+                  ]}
+                />
+              </Form.Item>
+            </>
+          )}
+          {instanceMode && (
+            <>
+              <Form.Item
+                name="base_model_id"
+                label={
+                  <span>
+                    {t('pages.modelLibrary.baseModelId')}
+                    <TermHint glossaryKey="pages.modelLibrary.glossary.base" />
+                  </span>
+                }
+                rules={[{ required: true }]}
+              >
+                <SelectWithCreate
+                  showSearch
+                  optionFilterProp="label"
+                  readOnly={readOnly}
+                  placeholder={t('common.select')}
+                  options={baseOptions}
+                  createLabel={t('pages.modelLibrary.createBaseInline')}
+                  onRequestCreate={() => setQuickKind('base')}
+                />
+              </Form.Item>
+              <Form.Item
+                name="vendor_id"
+                label={
+                  <span>
+                    {t('pages.modelLibrary.vendor')}
+                    <TermHint glossaryKey="pages.modelLibrary.glossary.vendor" />
+                  </span>
+                }
+                rules={[{ required: true }]}
+              >
+                <SelectWithCreate
+                  showSearch
+                  optionFilterProp="label"
+                  readOnly={readOnly}
+                  placeholder={t('common.select')}
+                  options={vendorOptions}
+                  createLabel={t('pages.modelLibrary.createVendorInline')}
+                  onRequestCreate={() => setQuickKind('vendor')}
+                />
+              </Form.Item>
+              <Form.Item
+                name="upstream_id"
+                label={
+                  <span>
+                    {t('pages.modelLibrary.upstreamRowId')}
+                    <TermHint glossaryKey="pages.modelLibrary.glossary.upstream" />
+                  </span>
+                }
+                rules={[{ required: true }]}
+              >
+                <SelectWithCreate
+                  showSearch
+                  optionFilterProp="label"
+                  readOnly={readOnly}
+                  placeholder={t('common.select')}
+                  options={upstreamOptions}
+                  createLabel={t('pages.modelLibrary.createUpstreamInline')}
+                  onRequestCreate={() => {
+                    if (vendorIdWatched == null) {
+                      message.warning(t('pages.modelLibrary.needVendorBeforeUpstream'))
+                      return
+                    }
+                    setQuickKind('upstream')
+                  }}
+                />
+              </Form.Item>
+              <Form.Item name="instance_name" label={t('pages.modelLibrary.instanceName')} rules={[{ required: true }]}>
+                <Input />
+              </Form.Item>
+              <Form.Item
+                name="provider_model_code"
+                label={
+                  <span>
+                    {t('pages.modelLibrary.providerModel')}
+                    <TermHint glossaryKey="pages.modelLibrary.glossary.providerModel" />
+                  </span>
+                }
+                rules={[{ required: true }]}
+              >
+                <Input />
+              </Form.Item>
+              <Form.Item name="weight" label={t('pages.modelLibrary.weight')} initialValue={10}>
+                <InputNumber min={1} className="w-full" />
+              </Form.Item>
+              <Form.Item name="priority" label={t('pages.modelLibrary.priority')} initialValue={1}>
+                <Select
+                  options={[
+                    { value: 1, label: t('pages.modelLibrary.prioHigh') },
+                    { value: 2, label: t('pages.modelLibrary.prioMid') },
+                    { value: 3, label: t('pages.modelLibrary.prioLow') },
+                  ]}
+                />
+              </Form.Item>
+              <Form.Item name="is_official" label={t('pages.modelLibrary.official')} initialValue={0}>
+                <Select
+                  options={[
+                    { value: 1, label: t('pages.modelLibrary.yes') },
+                    { value: 0, label: t('pages.modelLibrary.no') },
+                  ]}
+                />
+              </Form.Item>
+              <Form.Item name="status" label={t('pages.modelLibrary.status')} initialValue={1}>
+                <Select
+                  options={[
+                    { value: 1, label: t('pages.modelLibrary.stateOn') },
+                    { value: 0, label: t('pages.modelLibrary.stateOff') },
+                  ]}
+                />
+              </Form.Item>
+            </>
+          )}
+        </Form>
+      </Drawer>
+
+      <NestedQuickCreateModal
+        open={quickKind !== null}
+        kind={quickKind}
+        onClose={() => setQuickKind(null)}
+        onCreated={(row) => {
+          if (quickKind === 'vendor') form.setFieldsValue({ vendor_id: row.id })
+          if (quickKind === 'base') form.setFieldsValue({ base_model_id: row.id })
+          if (quickKind === 'upstream') form.setFieldsValue({ upstream_id: row.id })
+        }}
+        defaultVendorId={vendorIdWatched ?? undefined}
+        vendors={vendors}
+        readOnly={readOnly}
+      />
+    </>
   )
 }

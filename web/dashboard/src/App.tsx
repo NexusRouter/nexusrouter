@@ -4,16 +4,13 @@ import zhCN from 'antd/locale/zh_CN'
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import AdminLayout from './layouts/AdminLayout'
-import GatewayPolicyLayout from './layouts/GatewayPolicyLayout'
 import DashboardPage from './pages/Dashboard'
 import LoginPage from './pages/Login'
 import SetupPage from './pages/Setup'
 import ApiKeysPage from './pages/ApiKeys'
 import UpstreamsPage from './pages/Upstreams'
 import AccessLogsPage from './pages/AccessLogs'
-import RateLimitRulesPage from './pages/RateLimitRules'
-import CorsSettingsPage from './pages/CorsSettings'
-import IpAccessPage from './pages/IpAccess'
+import GatewayPolicyPage from './pages/GatewayPolicyPage'
 import SystemSettingsPage from './pages/SystemSettings'
 import ModelLibraryPage from './pages/ModelLibrary'
 import { useAuthStore } from './stores/authStore'
@@ -126,12 +123,17 @@ function LocalizedApp() {
                 <Route path="/model-library" element={<ModelLibraryPage />} />
                 <Route path="/api-keys" element={<ApiKeysPage />} />
                 <Route path="/logs" element={<AccessLogsPage />} />
-                <Route path="/gateway" element={<GatewayPolicyLayout />}>
-                  <Route index element={<Navigate to="rate-limits" replace />} />
-                  <Route path="rate-limits" element={<RateLimitRulesPage />} />
-                  <Route path="cors" element={<CorsSettingsPage />} />
-                  <Route path="ip-access" element={<IpAccessPage />} />
-                </Route>
+                <Route path="/gateway/policy" element={<GatewayPolicyPage />} />
+                <Route
+                  path="/gateway/rate-limits"
+                  element={<Navigate to="/gateway/policy#section-rate-limits" replace />}
+                />
+                <Route path="/gateway/cors" element={<Navigate to="/gateway/policy#section-cors" replace />} />
+                <Route
+                  path="/gateway/ip-access"
+                  element={<Navigate to="/gateway/policy#section-ip-access" replace />}
+                />
+                <Route path="/gateway" element={<Navigate to="/gateway/policy" replace />} />
                 <Route path="/settings" element={<SystemSettingsPage />} />
               </Route>
             </Route>
