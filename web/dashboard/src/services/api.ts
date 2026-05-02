@@ -1,9 +1,10 @@
 import axios from 'axios'
 import i18n from '../i18n/config'
 import { getAppMessage } from '../message/appMessageBridge'
+import { useAuthStore } from '../stores/authStore'
 
-/** 空字符串表示走 Vite 代理到同源网关（开发）或同域部署（生产）。 */
-const baseURL = import.meta.env.VITE_API_BASE_URL ?? ''
+/** 默认直连本机网关；需走 Vite 代理时可在 `.env` 设 `VITE_API_BASE_URL=`（空串）。生产同域部署可设为空或相对路径。 */
+const baseURL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8080'
 
 export const api = axios.create({
   baseURL,
@@ -18,10 +19,29 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+function loginPath(): string {
+  const base = import.meta.env.BASE_URL || '/'
+  return `${base.endsWith('/') ? base : `${base}/`}login`
+}
+
+function isAdminLoginRequest(config: { method?: string; url?: string } | undefined): boolean {
+  if (!config?.url) {
+    return false
+  }
+  const m = (config.method ?? 'get').toLowerCase()
+  return m === 'post' && config.url.includes('/api/admin/v1/auth/login')
+}
+
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     const st = err?.response?.status
+    const cfg = err?.config as { method?: string; url?: string } | undefined
+    if (st === 401 && !isAdminLoginRequest(cfg)) {
+      useAuthStore.getState().logout()
+      window.location.assign(loginPath())
+      return Promise.reject(err)
+    }
     if (st === 403) {
       void getAppMessage().error(i18n.t('errors.forbidden'))
     }

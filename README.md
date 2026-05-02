@@ -61,7 +61,7 @@ pnpm dev
 - 改了 `web/dashboard/`：`pnpm install --frozen-lockfile`、lint、带 coverage 的 test、build  
 - 改了 `openspec/` 或 CI/脚本：另跑 `openspec validate`
 
-**未包含**：网关 `make docs`（改 swag 注释后请在 `services/gateway` 本地执行后再推送）。临时跳过钩子（仅限应急）：`HUSKY=0 git commit ...`。
+**未包含**：网关 `make docs`（仅在更新嵌入的 OpenAPI 快照时需要，于 `services/gateway` 本地执行）。临时跳过钩子（仅限应急）：`HUSKY=0 git commit ...`。
 
 ## 许可证
 

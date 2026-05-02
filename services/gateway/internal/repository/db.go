@@ -2,6 +2,8 @@ package repository
 
 import (
 	"fmt"
+	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/config"
@@ -25,9 +27,26 @@ func OpenDB(cfg *config.Config, log *zap.Logger) (*gorm.DB, error) {
 	}
 	path := strings.TrimSpace(cfg.SQLitePath)
 	if path == "" {
-		path = "gateway.db"
+		path = defaultSQLitePathUnderGatewayModule()
 	}
 	return gorm.Open(sqlite.Open(path), gcfg)
+}
+
+// defaultSQLitePathUnderGatewayModule 返回 services/gateway/gateway.db 的绝对路径（相对本包源码定位模块根，不依赖进程 cwd）。
+// 若解析失败则回退为 "gateway.db"（与历史行为一致）。
+func defaultSQLitePathUnderGatewayModule() string {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		return "gateway.db"
+	}
+	// file = .../internal/repository/db.go → 模块根为 .../（即 services/gateway）
+	gwRoot := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+	joined := filepath.Join(gwRoot, "gateway.db")
+	abs, err := filepath.Abs(joined)
+	if err != nil {
+		return "gateway.db"
+	}
+	return abs
 }
 
 // AutoMigrate 创建或演进全部领域表。

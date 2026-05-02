@@ -156,3 +156,33 @@ func TestProvideEngine_EnvOnlyNoGatewayYAML(t *testing.T) {
 	e.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
 }
+
+func TestProvideEngine_CORS_Disabled_LocalhostPreflight(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	log := zap.NewNop()
+	cfg := &config.Config{
+		EnableSwaggerUI: false,
+		GatewayAPIKeys:  []string{"k"},
+	}
+	ks, err := keystore.New(cfg, log, nil)
+	require.NoError(t, err)
+	rt, err := runtime.NewStore(cfg, nil)
+	require.NoError(t, err)
+	e := ProvideEngine(log, cfg, ks, rt, ProvideMetrics(), nil)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodOptions, "/api/bootstrap/v1/complete", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
+	req.Header.Set("Access-Control-Request-Method", "POST")
+	req.Header.Set("Access-Control-Request-Headers", "content-type")
+	e.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusNoContent, rec.Code)
+	require.Equal(t, "http://localhost:5173", rec.Header().Get("Access-Control-Allow-Origin"))
+
+	rec2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest(http.MethodOptions, "/api/bootstrap/v1/complete", nil)
+	req2.Header.Set("Origin", "https://evil.example.com")
+	req2.Header.Set("Access-Control-Request-Method", "POST")
+	e.ServeHTTP(rec2, req2)
+	require.Empty(t, rec2.Header().Get("Access-Control-Allow-Origin"))
+}

@@ -10,10 +10,15 @@ export default {
     menuRateLimits: '限流规则',
     menuCors: 'CORS',
     menuIpAccess: 'IP 名单',
-    menuDebug: '接口调试',
     menuSettings: '系统设置',
     langZh: '中文',
     langEn: 'English',
+    themeLight: '浅色',
+    themeDark: '深色',
+    themeSystem: '系统',
+    themeSwitcherAria: '切换主题',
+    languageSwitcherAria: '切换语言',
+    topBannerHint: 'NexusRouter 网关控制台 — 侧栏管理上游、密钥与限流等配置',
   },
   login: {
     title: '管理员登录',
@@ -30,7 +35,7 @@ export default {
   setup: {
     title: '首次初始化',
     intro:
-      '创建超级管理员并设置站点显示名。须已在网关环境配置 NEXUSROUTER_ADMIN_JWT_SECRET 与启用管理控制台。',
+      '创建超级管理员并设置站点显示名。网关默认开启管理控制台；JWT 密钥未配置时由启动自动生成。',
     adminUsername: '超级管理员用户名',
     adminPassword: '超级管理员密码',
     siteName: '站点显示名（可选）',
@@ -42,7 +47,8 @@ export default {
     fail: '初始化失败，请检查网关日志',
     alreadyDone: '系统已初始化，将前往登录页',
     inProgress: '其他会话正在初始化，请稍后重试',
-    jwtMissing: '请先在环境变量中配置 NEXUSROUTER_ADMIN_JWT_SECRET',
+    jwtMissing: '网关未配置 JWT 密钥且自动生成失败，请检查网关日志',
+    adminDisabled: '管理控制台已在网关关闭：请删除 NEXUSROUTER_ENABLE_ADMIN_CONSOLE=false 或改为 true 并重启',
   },
   errors: {
     forbidden: '没有权限执行此操作（操作员只读）',
@@ -157,6 +163,7 @@ export default {
       exportFail: '导出失败',
       warnQueryFirst: '请先查询一次以固定筛选条件',
       queryFail: '查询失败',
+      logDisabled: '当前未启用代理访问日志（gateway.yaml 中 proxy_access_log.enabled）。启用并配置 path 后重新加载配置即可查询。',
       scanTruncated: '本次扫描因行数上限被截断，结果可能不完整。',
       labelFrom: 'from (RFC3339)',
       labelTo: 'to (RFC3339)',
@@ -211,15 +218,6 @@ export default {
       patchRemove: '移除',
       persistShort: '写回',
       applyPatch: '应用 PATCH',
-    },
-    swagger: {
-      title: '接口调试',
-      alertMsg:
-        '调用网关 API 时，请在 Swagger 中配置 Authorization: Bearer（网关 API Key 或管理 JWT，视接口而定）。',
-      hintBefore: '若页面空白，请确认网关已启用',
-      hintMid: '（非 false），且本页通过开发代理或同域访问',
-      hintEnd: '。',
-      iframeTitle: 'Swagger UI',
     },
   },
 } as const
