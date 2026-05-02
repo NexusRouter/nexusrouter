@@ -39,6 +39,9 @@ logs
 *.log
 *.log.*
 
+# Root Node (husky 等工具链)
+/node_modules/
+
 # Frontend (web/dashboard/)
 web/dashboard/node_modules/
 web/dashboard/dist/

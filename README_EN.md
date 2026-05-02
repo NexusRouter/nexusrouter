@@ -18,7 +18,13 @@ NexusRouter is a high-performance, open-source LLM API gateway that exposes **Op
 
 ## Quick Start
 
-**Prerequisites:** Go **1.24.x**, Node **≥ 22 (LTS)**, [pnpm](https://pnpm.io/) **9.x** (recommended: `corepack enable`).
+**Prerequisites:** Go **1.24.x**, Node **≥ 22 (LTS)**, [pnpm](https://pnpm.io/) **9.x** (recommended: `corepack enable && corepack prepare pnpm@9.15.9 --activate`).
+
+**Repository root (Husky git hooks)**
+
+```bash
+pnpm install
+```
 
 **Gateway (Go)**
 
@@ -38,6 +44,12 @@ pnpm dev
 ```
 
 See `openspec/project.md` and `services/gateway/README.md` for more detail.
+
+## Development: pre-commit checks (Husky)
+
+After cloning, run **`pnpm install` once at the repository root** to install Husky and register the Git `pre-commit` hook (`core.hooksPath` points to `.husky/_`).
+
+Before each `git commit`, checks aligned with CI run based on **staged paths** (unchanged subprojects are skipped). Not included: gateway `make docs` (run locally in `services/gateway` when you change Swag comments). Emergency bypass: `HUSKY=0 git commit ...`.
 
 ## Contributing
 

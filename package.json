@@ -1,0 +1,11 @@
+{
+  "name": "nexusrouter",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7"
+  }
+}

@@ -14,7 +14,7 @@ TBD - created by archiving change project-initialization. Update Purpose after a
 
 ### Requirement: 核心依赖版本矩阵
 
-`web/dashboard` MUST 在 `package.json` 中声明并满足以下依赖的兼容版本范围：**TypeScript ^5.7.0**、**react / react-dom ^19.1.0**、**vite ^6.3.0**、**antd ^6.0.0**、**tailwindcss ^4.1.0**、**@tailwindcss/vite ^4.1.0**、**zustand ^5.0.0**、**@tanstack/react-query ^5.74.0**、**axios ^1.8.0**、**react-router ^7.5.0**、**react-hook-form ^7.55.0**、**zod ^3.24.0**、**lucide-react ^0.487.0**、**dayjs ^1.11.0**；开发依赖 MUST 包含 **eslint ^9.x**、**prettier ^3.5.0**、**vitest ^3.1.0**、**@testing-library/react ^16.3.0**。
+`web/dashboard` MUST 在 `package.json` 中声明并满足以下依赖的兼容版本范围：**TypeScript ^5.7.0**、**react / react-dom ^19.1.0**、**vite ^6.3.0**、**antd ^6.0.0**、**tailwindcss ^4.1.0**、**@tailwindcss/vite ^4.1.0**、**zustand ^5.0.0**、**@tanstack/react-query ^5.74.0**、**axios ^1.8.0**、**react-router ^7.5.0**、**react-hook-form ^7.55.0**、**zod ^3.24.0**、**lucide-react ^0.487.0**、**dayjs ^1.11.0**；开发依赖 MUST 包含 **eslint ^9.x**、**eslint-plugin-react**、**eslint-plugin-react-hooks**、**prettier ^3.5.0**、**vitest ^3.1.0**、**@testing-library/react ^16.3.0**。
 
 #### Scenario: 类型检查通过
 

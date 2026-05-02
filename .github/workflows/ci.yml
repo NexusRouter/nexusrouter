@@ -31,6 +31,12 @@ jobs:
       - name: Go fmt
         run: test -z "$(gofmt -l .)"
 
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.12.1
+          working-directory: services/gateway
+
       - name: Go vet
         run: go vet ./...
 
