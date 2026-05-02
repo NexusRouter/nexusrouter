@@ -285,9 +285,9 @@ func adminLogsQuery(rt *runtime.Store, log *zap.Logger) gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{
-			"items":            items,
-			"next_cursor":      next,
-			"scan_truncated":   truncated,
+			"items":             items,
+			"next_cursor":       next,
+			"scan_truncated":    truncated,
 			"proxy_log_enabled": s.ProxyAccessLog.Enabled,
 		})
 	}

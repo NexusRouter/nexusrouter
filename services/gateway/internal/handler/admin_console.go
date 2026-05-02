@@ -118,8 +118,8 @@ func adminPasswordResetInfo(cfg *config.Config) gin.HandlerFunc {
 		hasSMTP := strings.TrimSpace(cfg.AdminPasswordResetSMTP) != ""
 		c.JSON(http.StatusOK, gin.H{
 			"email_configured": hasSMTP,
-			"hint":               "若未配置邮件，请联系运维在主机上更新 NEXUSROUTER_ADMIN_PASSWORD_BCRYPT 或通过安全渠道重置。",
-			"doc":                "详见 services/gateway/README.md 管理控制台章节。",
+			"hint":             "若未配置邮件，请联系运维在主机上更新 NEXUSROUTER_ADMIN_PASSWORD_BCRYPT 或通过安全渠道重置。",
+			"doc":              "详见 services/gateway/README.md 管理控制台章节。",
 		})
 	}
 }
@@ -142,15 +142,15 @@ func adminGatewaySnapshot(rt *runtime.Store) gin.HandlerFunc {
 		}
 		s := rt.Snapshot()
 		c.JSON(http.StatusOK, gin.H{
-			"upstreams":         s.Upstreams,
-			"routing":           s.Routing,
-			"cors":              s.CORS,
-			"rate_limit":        s.RateLimit,
-			"rate_limit_rules":  s.RateLimitRules,
-			"ip_access":         s.IPAccess,
-			"proxy_access_log":  s.ProxyAccessLog,
-			"config_file":       rt.Path(),
-			"config_file_set":   strings.TrimSpace(rt.Path()) != "",
+			"upstreams":        s.Upstreams,
+			"routing":          s.Routing,
+			"cors":             s.CORS,
+			"rate_limit":       s.RateLimit,
+			"rate_limit_rules": s.RateLimitRules,
+			"ip_access":        s.IPAccess,
+			"proxy_access_log": s.ProxyAccessLog,
+			"config_file":      rt.Path(),
+			"config_file_set":  strings.TrimSpace(rt.Path()) != "",
 		})
 	}
 }

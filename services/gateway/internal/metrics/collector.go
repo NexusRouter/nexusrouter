@@ -22,12 +22,12 @@ type Collector struct {
 	errCounts map[string]uint64
 
 	// 按 UTC 日界滚动的今日/昨日请求量（用于对比）。
-	dayUTC          string
-	todayReq        uint64
-	todaySuccess    uint64
-	yesterdayReq    uint64
-	yesterdaySucc   uint64
-	todayErrByCode  map[string]uint64
+	dayUTC           string
+	todayReq         uint64
+	todaySuccess     uint64
+	yesterdayReq     uint64
+	yesterdaySucc    uint64
+	todayErrByCode   map[string]uint64
 	prevDayErrByCode map[string]uint64
 
 	// 最近若干整秒的请求计数（用于估算 RPS，键为 Unix 秒）。
@@ -181,19 +181,19 @@ func (c *Collector) SummaryJSON() map[string]any {
 	}
 
 	return map[string]any{
-		"server_time":          now.UTC().Format(time.RFC3339Nano),
-		"online":               true,
-		"requests_total":       total,
-		"success_total":        ok,
-		"success_rate":         successRate,
-		"avg_latency_ms":       avg,
-		"current_rps_estimate": rate,
-		"requests_today":       today,
-		"requests_yesterday":   yest,
-		"success_today":        todayOK,
-		"success_yesterday":    yestOK,
-		"errors_by_code":       ec,
-		"errors_today_by_code": te,
+		"server_time":              now.UTC().Format(time.RFC3339Nano),
+		"online":                   true,
+		"requests_total":           total,
+		"success_total":            ok,
+		"success_rate":             successRate,
+		"avg_latency_ms":           avg,
+		"current_rps_estimate":     rate,
+		"requests_today":           today,
+		"requests_yesterday":       yest,
+		"success_today":            todayOK,
+		"success_yesterday":        yestOK,
+		"errors_by_code":           ec,
+		"errors_today_by_code":     te,
 		"errors_yesterday_by_code": pe,
 	}
 }

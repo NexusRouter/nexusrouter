@@ -40,13 +40,13 @@ type RateLimit struct {
 
 // RateLimitRule 单条限流规则（priority 越大越优先；match_path_prefix 空表示匹配所有路径）。
 type RateLimitRule struct {
-	ID               string  `yaml:"id" json:"id"`
-	Priority         int     `yaml:"priority" json:"priority"`
-	MatchPathPrefix  string  `yaml:"match_path_prefix" json:"match_path_prefix"`
-	Dimension        string  `yaml:"dimension" json:"dimension"` // ip | api_key_fp
-	RPS              float64 `yaml:"rps" json:"rps"`
-	Burst            int     `yaml:"burst" json:"burst"`
-	Enabled          bool    `yaml:"enabled" json:"enabled"`
+	ID              string  `yaml:"id" json:"id"`
+	Priority        int     `yaml:"priority" json:"priority"`
+	MatchPathPrefix string  `yaml:"match_path_prefix" json:"match_path_prefix"`
+	Dimension       string  `yaml:"dimension" json:"dimension"` // ip | api_key_fp
+	RPS             float64 `yaml:"rps" json:"rps"`
+	Burst           int     `yaml:"burst" json:"burst"`
+	Enabled         bool    `yaml:"enabled" json:"enabled"`
 }
 
 // IPAccess IP 白/黑名单段。
@@ -66,10 +66,10 @@ type ProxyAccessLog struct {
 
 // AdminAlerts 管理面板运行态告警阈值（错误率基于进程内累计成功率近似）。
 type AdminAlerts struct {
-	Enabled              bool    `yaml:"enabled" json:"enabled"`
-	ErrorRateThreshold   float64 `yaml:"error_rate_threshold" json:"error_rate_threshold"` // 0~1，如 0.2 表示错误率 ≥20% 触发
-	WindowSeconds        int     `yaml:"window_seconds" json:"window_seconds"`               // 预留；当前评估用固定 tick
-	ConsecutivePeriods   int     `yaml:"consecutive_periods" json:"consecutive_periods"`     // 连续超阈值评估周期数后升为 critical
+	Enabled            bool    `yaml:"enabled" json:"enabled"`
+	ErrorRateThreshold float64 `yaml:"error_rate_threshold" json:"error_rate_threshold"` // 0~1，如 0.2 表示错误率 ≥20% 触发
+	WindowSeconds      int     `yaml:"window_seconds" json:"window_seconds"`             // 预留；当前评估用固定 tick
+	ConsecutivePeriods int     `yaml:"consecutive_periods" json:"consecutive_periods"`   // 连续超阈值评估周期数后升为 critical
 }
 
 // Routing 上游路由策略。
@@ -80,26 +80,26 @@ type Routing struct {
 }
 
 type fileYAML struct {
-	Upstreams        []Upstream        `yaml:"upstreams"`
-	Routing          Routing           `yaml:"routing"`
-	CORS             CORS              `yaml:"cors"`
-	RateLimit        RateLimit         `yaml:"rate_limit"`
-	RateLimitRules   []RateLimitRule   `yaml:"rate_limit_rules"`
-	IPAccess         IPAccess          `yaml:"ip_access"`
-	ProxyAccessLog   ProxyAccessLog    `yaml:"proxy_access_log"`
-	AdminAlerts      AdminAlerts       `yaml:"admin_alerts"`
+	Upstreams      []Upstream      `yaml:"upstreams"`
+	Routing        Routing         `yaml:"routing"`
+	CORS           CORS            `yaml:"cors"`
+	RateLimit      RateLimit       `yaml:"rate_limit"`
+	RateLimitRules []RateLimitRule `yaml:"rate_limit_rules"`
+	IPAccess       IPAccess        `yaml:"ip_access"`
+	ProxyAccessLog ProxyAccessLog  `yaml:"proxy_access_log"`
+	AdminAlerts    AdminAlerts     `yaml:"admin_alerts"`
 }
 
 // Snapshot 为原子替换的运行时视图。
 type Snapshot struct {
-	Upstreams        []Upstream
-	Routing          Routing
-	CORS             CORS
-	RateLimit        RateLimit
-	RateLimitRules   []RateLimitRule
-	IPAccess         IPAccess
-	ProxyAccessLog   ProxyAccessLog
-	AdminAlerts      AdminAlerts
+	Upstreams      []Upstream
+	Routing        Routing
+	CORS           CORS
+	RateLimit      RateLimit
+	RateLimitRules []RateLimitRule
+	IPAccess       IPAccess
+	ProxyAccessLog ProxyAccessLog
+	AdminAlerts    AdminAlerts
 }
 
 // Store 保存当前快照并可从文件重载。

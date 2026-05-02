@@ -30,16 +30,16 @@ func DefaultQueryLimits() QueryLimits {
 
 // LogFilters 与代理访问日志字段 AND 组合筛选。
 type LogFilters struct {
-	FromRFC3339   string
-	ToRFC3339     string
-	PathPrefix    string
-	StatusMin     int
-	StatusMax     int
-	APIKeyFP      string
-	ClientIP      string
-	Limit         int
-	Cursor        string
-	MaxScanBytes  int64
+	FromRFC3339  string
+	ToRFC3339    string
+	PathPrefix   string
+	StatusMin    int
+	StatusMax    int
+	APIKeyFP     string
+	ClientIP     string
+	Limit        int
+	Cursor       string
+	MaxScanBytes int64
 }
 
 // LogRow 单条 JSON 日志解析后的扁平视图（供 API / CSV）。
