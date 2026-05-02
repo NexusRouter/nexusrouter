@@ -37,6 +37,9 @@ func Register(r *gin.Engine, d Deps) {
 	}
 	cfg, log := d.Config, d.Log
 
+	adm := adminauth.New(cfg, d.DB)
+	handler.RegisterFirstBootRoutes(r, cfg, d.DB, adm, log)
+
 	r.GET("/health", handler.Health())
 
 	openapi.Register(r, cfg.EnableSwaggerUI)
@@ -69,6 +72,5 @@ func Register(r *gin.Engine, d Deps) {
 		handler.ChatProxy(cfg, log, d.Runtime, d.Metrics),
 	)
 
-	adm := adminauth.New(cfg, d.DB)
 	handler.RegisterAdminConsole(r, cfg, adm, d.Metrics, d.Runtime, d.KeyStore, log, d.DB)
 }

@@ -17,6 +17,9 @@ func ProvideDB(cfg *config.Config, log *zap.Logger) (*gorm.DB, error) {
 	if err := repository.AutoMigrate(db); err != nil {
 		return nil, err
 	}
+	if err := repository.EnsureSystemBootstrap(db); err != nil {
+		return nil, err
+	}
 	if err := repository.BootstrapFromConfig(cfg, db, log); err != nil {
 		return nil, err
 	}

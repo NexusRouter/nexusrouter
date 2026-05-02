@@ -37,3 +37,19 @@ type AdminUserModel struct {
 
 // TableName 显式表名。
 func (AdminUserModel) TableName() string { return "admin_users" }
+
+// SystemBootstrapSingletonPK 全局引导状态行主键，固定为 1。
+const SystemBootstrapSingletonPK uint = 1
+
+// SystemBootstrapRow 全局首次初始化状态（单行，主键固定为 1）。
+type SystemBootstrapRow struct {
+	ID              uint `gorm:"primaryKey"`
+	Initialized     bool
+	InitInProgress  bool
+	InitStartedAt   *time.Time
+	SiteDisplayName string `gorm:"size:255"`
+	UpdatedAt       time.Time
+}
+
+// TableName 显式表名。
+func (SystemBootstrapRow) TableName() string { return "system_bootstrap" }
