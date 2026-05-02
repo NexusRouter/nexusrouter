@@ -70,6 +70,15 @@ func TestGetBootstrapStatus_InitializingPhase(t *testing.T) {
 	require.Equal(t, BootstrapPhaseInitializing, st.Phase)
 }
 
+func TestIsSystemInitialized_NoBootstrapRowMeansNotInitialized(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "norow.db")), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, AutoMigrate(db))
+	ok, err := IsSystemInitialized(db)
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
 func TestResetFirstBoot_ClearsAdmins(t *testing.T) {
 	db := openFirstBootTestDB(t)
 	now := time.Now().UTC()

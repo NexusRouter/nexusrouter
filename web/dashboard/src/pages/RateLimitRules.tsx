@@ -7,7 +7,8 @@ import { api } from '../services/api'
 import { isOperatorRole, useAuthStore } from '../stores/authStore'
 
 type Rule = {
-  id: string
+  /** 服务端生成；表单用隐藏域回传，不在界面展示 */
+  id?: string
   priority: number
   match_path_prefix: string
   dimension: string
@@ -80,19 +81,16 @@ export default function RateLimitRulesPage() {
           {(fields, { add, remove }) => {
             const cols: ColumnsType<FieldRow> = [
               {
-                title: 'ID',
-                render: (_, r) => (
-                  <Form.Item name={[r.name, 'id']} noStyle rules={[{ required: true, message: t('common.required') }]}>
-                    <Input />
-                  </Form.Item>
-                ),
-              },
-              {
                 title: t('pages.rateLimits.colPriority'),
                 render: (_, r) => (
-                  <Form.Item name={[r.name, 'priority']} noStyle>
-                    <InputNumber className="w-full" />
-                  </Form.Item>
+                  <>
+                    <Form.Item name={[r.name, 'id']} hidden>
+                      <Input type="hidden" />
+                    </Form.Item>
+                    <Form.Item name={[r.name, 'priority']} noStyle>
+                      <InputNumber className="w-full" />
+                    </Form.Item>
+                  </>
                 ),
               },
               {

@@ -47,6 +47,7 @@ export default function AccessLogsPage() {
         items: LogItem[]
         next_cursor: string
         scan_truncated: boolean
+        proxy_log_enabled?: boolean
       }>(`/api/admin/v1/logs/query?${sp.toString()}`)
       return data
     },
@@ -176,9 +177,15 @@ export default function AccessLogsPage() {
       {q.isError ? (
         <Typography.Text type="danger">{t('pages.accessLogs.queryFail')}</Typography.Text>
       ) : null}
+      {q.data?.proxy_log_enabled === false ? (
+        <Typography.Text type="secondary">{t('pages.accessLogs.logDisabled')}</Typography.Text>
+      ) : null}
       <Table
         size="small"
-        rowKey={(_, i) => String(i)}
+        rowKey={(row) => {
+          const r = row as LogItem
+          return [r.ts, r.path, r.client_ip, r.status, r.duration_ms, r.api_key_fp].map(String).join('\u241e')
+        }}
         loading={q.isFetching}
         dataSource={(q.data?.items ?? []) as LogItem[]}
         columns={columns}

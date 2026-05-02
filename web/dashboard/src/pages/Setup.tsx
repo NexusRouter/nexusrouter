@@ -2,6 +2,7 @@ import { App, Button, Card, Form, Input, Typography } from 'antd'
 import { useNavigate } from 'react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import PublicPageShell from '../components/PublicPageShell'
 import { completeBootstrap } from '../services/bootstrap'
 
 /** 首次部署向导：创建超级管理员并写入站点显示名。 */
@@ -12,8 +13,8 @@ export default function SetupPage() {
   const [loading, setLoading] = useState(false)
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
-      <Card className="w-full max-w-md shadow-md" title={t('setup.title')}>
+    <PublicPageShell>
+      <Card className="w-full max-w-md shadow-lg dark:border-slate-700" title={t('setup.title')}>
         <Typography.Paragraph type="secondary" className="!mb-4">
           {t('setup.intro')}
         </Typography.Paragraph>
@@ -42,6 +43,8 @@ export default function SetupPage() {
                 message.warning(t('setup.inProgress'))
               } else if (code === 'BOOTSTRAP_JWT_MISSING') {
                 message.error(t('setup.jwtMissing'))
+              } else if (code === 'ADMIN_DISABLED') {
+                message.error(t('setup.adminDisabled'))
               } else {
                 message.error(t('setup.fail'))
               }
@@ -77,6 +80,6 @@ export default function SetupPage() {
           </Form.Item>
         </Form>
       </Card>
-    </div>
+    </PublicPageShell>
   )
 }

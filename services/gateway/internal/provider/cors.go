@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"net/url"
 	"strings"
 	"time"
 
@@ -9,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// DynamicCORS 按运行时快照构造 CORS；未启用时直接放行。
+// DynamicCORS 按运行时快照构造 CORS；未在 gateway.yaml 启用 CORS 时，对常见本机开发 Origin（localhost / 127.0.0.1 / ::1）回显 Access-Control-Allow-Origin，避免仪表盘直连网关时出现浏览器预检失败。
 // 引擎级顺序：CORS → RequestID → Recovery → ErrorJSON → IP 限流 → …（见 ProvideEngine 注释）。
 func DynamicCORS(store *runtime.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -19,7 +20,7 @@ func DynamicCORS(store *runtime.Store) gin.HandlerFunc {
 		}
 		s := store.Snapshot()
 		if s == nil || !s.CORS.Enabled {
-			c.Next()
+			applyLocalDevCORSIfNeeded(c)
 			return
 		}
 		mx := s.CORS.MaxAgeSeconds
@@ -35,6 +36,46 @@ func DynamicCORS(store *runtime.Store) gin.HandlerFunc {
 			MaxAge:           time.Duration(mx) * time.Second,
 		}
 		cors.New(cfg)(c)
+	}
+}
+
+// applyLocalDevCORSIfNeeded 在无全局 CORS 配置时，仅当请求带 Origin 且为本机开发地址时注入 CORS 头；同源或 curl 无 Origin 时保持原样。
+func applyLocalDevCORSIfNeeded(c *gin.Context) {
+	origin := strings.TrimSpace(c.GetHeader("Origin"))
+	if origin == "" || !isLocalDevOrigin(origin) {
+		c.Next()
+		return
+	}
+	cfg := cors.Config{
+		AllowOriginFunc: isLocalDevOrigin,
+		AllowMethods:    []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},
+		AllowHeaders: []string{
+			"Origin", "Content-Type", "Accept", "Authorization",
+			"X-Requested-With", "X-Request-ID",
+		},
+		AllowCredentials: false,
+		MaxAge:           12 * time.Hour,
+	}
+	cors.New(cfg)(c)
+}
+
+func isLocalDevOrigin(origin string) bool {
+	origin = strings.TrimSpace(origin)
+	if origin == "" {
+		return false
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return false
+	}
+	switch u.Hostname() {
+	case "localhost", "127.0.0.1", "::1":
+		return true
+	default:
+		return false
 	}
 }
 

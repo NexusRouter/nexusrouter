@@ -1,4 +1,4 @@
-import { App as AntdApp, ConfigProvider, Spin } from 'antd'
+import { App as AntdApp, ConfigProvider, Spin, theme as antdTheme } from 'antd'
 import enUS from 'antd/locale/en_US'
 import zhCN from 'antd/locale/zh_CN'
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router'
@@ -8,7 +8,6 @@ import DashboardPage from './pages/Dashboard'
 import LoginPage from './pages/Login'
 import SetupPage from './pages/Setup'
 import ApiKeysPage from './pages/ApiKeys'
-import SwaggerDebugPage from './pages/SwaggerDebug'
 import UpstreamsPage from './pages/Upstreams'
 import AccessLogsPage from './pages/AccessLogs'
 import RateLimitRulesPage from './pages/RateLimitRules'
@@ -17,8 +16,10 @@ import IpAccessPage from './pages/IpAccess'
 import SystemSettingsPage from './pages/SystemSettings'
 import { useAuthStore } from './stores/authStore'
 import { useEffect, useState } from 'react'
+import axios from 'axios'
 import { MessageBridge } from './components/MessageBridge'
 import { fetchBootstrapStatus } from './services/bootstrap'
+import { useResolvedDark } from './hooks/useResolvedDark'
 
 /** 未登录时跳转登录页，并带上 redirect。 */
 function RequireAuth() {
@@ -55,10 +56,11 @@ function BootstrapShell() {
         if (!cancelled) {
           setInitialized(st.initialized)
         }
-      } catch {
-        // 兼容旧网关无该接口：不拦截控制台。
+      } catch (err) {
+        // 仅当网关确实无该路由（404）时视为旧版本、跳过向导；其它错误（代理失败、5xx 等）走向导，避免静默当作「已初始化」。
         if (!cancelled) {
-          setInitialized(true)
+          const st = axios.isAxiosError(err) ? err.response?.status : undefined
+          setInitialized(st === 404)
         }
       } finally {
         if (!cancelled) {
@@ -73,7 +75,7 @@ function BootstrapShell() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
         <Spin size="large" />
       </div>
     )
@@ -91,8 +93,18 @@ function BootstrapShell() {
 function LocalizedApp() {
   const { i18n } = useTranslation()
   const antLocale = i18n.language.startsWith('en') ? enUS : zhCN
+  const dark = useResolvedDark()
   return (
-    <ConfigProvider locale={antLocale}>
+    <ConfigProvider
+      locale={antLocale}
+      theme={{
+        algorithm: dark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+        token: {
+          colorPrimary: '#6366f1',
+          borderRadiusLG: 12,
+        },
+      }}
+    >
       <AntdApp>
         <MessageBridge />
         <Routes>
@@ -110,7 +122,6 @@ function LocalizedApp() {
                 <Route path="/cors" element={<CorsSettingsPage />} />
                 <Route path="/ip-access" element={<IpAccessPage />} />
                 <Route path="/settings" element={<SystemSettingsPage />} />
-                <Route path="/debug" element={<SwaggerDebugPage />} />
               </Route>
             </Route>
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

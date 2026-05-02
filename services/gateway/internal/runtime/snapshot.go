@@ -2,6 +2,7 @@
 package runtime
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -11,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/config"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/ipaccess"
@@ -363,6 +365,10 @@ func validateIPAccess(s *Snapshot) error {
 }
 
 func validateRateLimitRules(s *Snapshot) error {
+	if s == nil {
+		return nil
+	}
+	ensureRateLimitRuleIDs(s)
 	seen := map[string]bool{}
 	for _, r := range s.RateLimitRules {
 		id := strings.TrimSpace(r.ID)
@@ -392,6 +398,23 @@ func validateRateLimitRules(s *Snapshot) error {
 		}
 	}
 	return nil
+}
+
+func ensureRateLimitRuleIDs(s *Snapshot) {
+	for i := range s.RateLimitRules {
+		if strings.TrimSpace(s.RateLimitRules[i].ID) != "" {
+			continue
+		}
+		s.RateLimitRules[i].ID = newRateLimitRuleID()
+	}
+}
+
+func newRateLimitRuleID() string {
+	b := make([]byte, 8)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("rl-%d", time.Now().UnixNano())
+	}
+	return "rl-" + hex.EncodeToString(b)
 }
 
 // SelectIPRateRule 返回命中的首条已启用 IP 维度规则（按 priority 降序）。
