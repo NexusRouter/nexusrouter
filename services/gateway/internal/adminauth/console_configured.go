@@ -17,6 +17,11 @@ func IsConsoleConfigured(cfg *config.Config, db *gorm.DB) bool {
 		return false
 	}
 	if db != nil {
+		var boot repository.SystemBootstrapRow
+		if err := db.Select("initialized").First(&boot, repository.SystemBootstrapSingletonPK).Error; err == nil && !boot.Initialized {
+			// 未完成首次向导：仍注册管理路由（登录/说明）以便向导完成后立即可用；业务接口由门闸拦截。
+			return true
+		}
 		var n int64
 		if err := db.Model(&repository.AdminUserModel{}).Where("role = ?", "admin").Count(&n).Error; err == nil && n > 0 {
 			return true

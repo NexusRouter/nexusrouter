@@ -24,6 +24,7 @@ func ProvideEngine(log *zap.Logger, cfg *config.Config, ks *keystore.Store, rt *
 	e.Use(router.RequestID())
 	e.Use(router.ZapRecovery(log))
 	e.Use(router.ErrorJSON(log))
+	e.Use(router.BootstrapGate(db, log))
 	e.Use(handler.IPRateLimit(rt, log, col))
 	e.Use(handler.IPAccessControl(rt, log, col))
 	router.Register(e, router.Deps{Config: cfg, Log: log, KeyStore: ks, Runtime: rt, Metrics: col, DB: db})

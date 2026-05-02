@@ -31,6 +31,10 @@ jobs:
       - name: Go fmt
         run: test -z "$(gofmt -l .)"
 
+      # go:embed openapi.yaml 须磁盘上存在；该文件不入库，故在 lint 与 go test 之前生成。
+      - name: Generate Swag docs and OpenAPI (embed)
+        run: make docs
+
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v8
         with:
@@ -40,14 +44,14 @@ jobs:
       - name: Go vet
         run: go vet ./...
 
-      - name: Verify Swag docs drift
-        run: make docs && git diff --exit-code docs/ internal/openapi/openapi.yaml
+      - name: Verify Swag docs drift (docs/ only; openapi.yaml is generated, not tracked)
+        run: git diff --exit-code docs/
 
       - name: Go test
-        run: go test ./... -count=1 -cover
+        run: make test
 
       - name: Go build API
-        run: go build -o /tmp/nexusrouter-gateway ./cmd/api
+        run: make build-api
 
   dashboard-frontend:
     name: Dashboard (pnpm)

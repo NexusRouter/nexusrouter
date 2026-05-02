@@ -27,6 +27,23 @@ export default {
     success: '登录成功',
     fail: '登录失败，请检查账号密码',
   },
+  setup: {
+    title: '首次初始化',
+    intro:
+      '创建超级管理员并设置站点显示名。须已在网关环境配置 NEXUSROUTER_ADMIN_JWT_SECRET 与启用管理控制台。',
+    adminUsername: '超级管理员用户名',
+    adminPassword: '超级管理员密码',
+    siteName: '站点显示名（可选）',
+    submit: '完成初始化',
+    needAdminUsername: '请输入用户名',
+    needAdminPassword: '请输入密码',
+    passwordMin: '密码至少 8 位',
+    success: '初始化成功，请登录',
+    fail: '初始化失败，请检查网关日志',
+    alreadyDone: '系统已初始化，将前往登录页',
+    inProgress: '其他会话正在初始化，请稍后重试',
+    jwtMissing: '请先在环境变量中配置 NEXUSROUTER_ADMIN_JWT_SECRET',
+  },
   errors: {
     forbidden: '没有权限执行此操作（操作员只读）',
   },

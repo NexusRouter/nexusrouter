@@ -63,6 +63,15 @@ definitions:
       active_upstream_id:
         type: string
     type: object
+  handler.firstBootCompleteBody:
+    properties:
+      admin_password:
+        type: string
+      admin_username:
+        type: string
+      site_display_name:
+        type: string
+    type: object
 externalDocs:
   description: OpenAI API Overview
   url: https://developers.openai.com/api/reference/overview
@@ -73,6 +82,50 @@ info:
   title: NexusRouter Gateway API
   version: 1.0.0
 paths:
+  /api/bootstrap/v1/complete:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 初始化载荷
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.firstBootCompleteBody'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 完成首次初始化
+  /api/bootstrap/v1/reset:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 重置首次初始化（超级管理员）
+  /api/bootstrap/v1/status:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 首次初始化状态
   /health:
     get:
       description: 返回服务状态、版本号与当前时间（UTC RFC3339Nano），无需鉴权。

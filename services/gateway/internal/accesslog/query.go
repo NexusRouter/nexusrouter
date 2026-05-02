@@ -152,8 +152,8 @@ func rowMatches(m map[string]interface{}, f LogFilters, fromT, toT time.Time, ha
 		}
 	}
 	if pfx := strings.TrimSpace(f.PathPrefix); pfx != "" {
-		path, _ := m["path"].(string)
-		if !strings.HasPrefix(path, pfx) {
+		path, ok := m["path"].(string)
+		if !ok || !strings.HasPrefix(path, pfx) {
 			return false
 		}
 	}
@@ -173,14 +173,14 @@ func rowMatches(m map[string]interface{}, f LogFilters, fromT, toT time.Time, ha
 		}
 	}
 	if want := strings.TrimSpace(f.APIKeyFP); want != "" {
-		got, _ := m["api_key_fp"].(string)
-		if got != want {
+		got, ok := m["api_key_fp"].(string)
+		if !ok || got != want {
 			return false
 		}
 	}
 	if want := strings.TrimSpace(f.ClientIP); want != "" {
-		got, _ := m["client_ip"].(string)
-		if got != want {
+		got, ok := m["client_ip"].(string)
+		if !ok || got != want {
 			return false
 		}
 	}

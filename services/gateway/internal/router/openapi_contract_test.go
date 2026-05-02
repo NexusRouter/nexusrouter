@@ -58,8 +58,13 @@ func TestOpenAPI_Swagger_Contract(t *testing.T) {
 		_, hasRB := post["requestBody"]
 		require.True(t, hasRB, "post 应含 requestBody")
 
-		secRoot, _ := root["security"].([]any)
-		secPost, _ := post["security"].([]any)
+		var secRoot, secPost []any
+		if v, ok := root["security"].([]any); ok {
+			secRoot = v
+		}
+		if v, ok := post["security"].([]any); ok {
+			secPost = v
+		}
 		require.True(t, len(secRoot) > 0 || len(secPost) > 0, "根级或操作级 security 至少一处")
 
 		comps, ok := root["components"].(map[string]any)
@@ -69,7 +74,10 @@ func TestOpenAPI_Swagger_Contract(t *testing.T) {
 		var bearer map[string]any
 		for name, v := range schemes {
 			if strings.Contains(strings.ToLower(name), "bearer") {
-				bearer, _ = v.(map[string]any)
+				b, ok := v.(map[string]any)
+				if ok {
+					bearer = b
+				}
 				break
 			}
 		}
@@ -126,7 +134,8 @@ func TestOpenAPI_Swagger_Contract(t *testing.T) {
 		require.Equal(t, http.StatusOK, rec.Code)
 		var root map[string]any
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &root))
-		ver, _ := root["openapi"].(string)
+		ver, ok := root["openapi"].(string)
+		require.True(t, ok, "openapi 字段类型")
 		require.True(t, strings.HasPrefix(ver, "3.0."), ver)
 	})
 }
