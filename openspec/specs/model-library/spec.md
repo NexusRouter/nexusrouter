@@ -101,7 +101,7 @@
 
 ### Requirement: 上游探针与临时剔除（产品范围外，不实现）
 
-对 **`model_upstream` / `model_instance`** 的**周期性可达性探针**、失败时**临时剔出选择池**等行为 **已确定为产品范围外，不实现**（对应实现任务 **2.4** 关闭，非「仅首版延后」）。实例选择仅依据库内 **`status` 与 `priority` / `is_official` / `weight`** 等已持久化字段及既定算法；**不**依据运行时探活结果。
+系统 SHALL NOT 实现 **`model_upstream` / `model_instance`** 的周期性可达性探针，亦 SHALL NOT 因探针结果临时将实例剔出选择池（对应任务 **2.4** 关闭；非「仅首版延后」）。实例选择 MUST 仅依据库内 **`status` 与 `priority` / `is_official` / `weight`** 等已持久化字段及既定算法，MUST NOT 依据运行时探活结果。
 
 若未来单独立项引入探针，MUST 另起规范修订，且 MUST 遵守本文 **安全与密钥** 条款（日志与响应中不得泄露 **`api_key`**）。
 

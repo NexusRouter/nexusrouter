@@ -62,7 +62,12 @@
 
 ### Requirement: 上游探针（产品范围外）
 
-对 **`model_upstream` / `model_instance`** 的周期性可达性探针与临时剔出选择池 **不实现**；与 **`model-library`** 中「上游探针与临时剔除」一致。实例选择仅依据库内 **`status` 与 `priority` / `is_official` / `weight`**。
+系统 SHALL NOT 实现 **`model_upstream` / `model_instance`** 的周期性可达性探针，亦 SHALL NOT 因探针临时剔出选择池；与 **`model-library`** 中「上游探针与临时剔除」一致。实例选择 MUST 仅依据库内 **`status` 与 `priority` / `is_official` / `weight`**。
+
+#### Scenario: 选择不依赖探针
+
+- **WHEN** 网关为 Chat 路径选择 **`model_instance`**
+- **THEN** MUST NOT 以探针可达性作为选择依据；仅使用库表字段与既定算法
 
 ### Requirement: 管理视角筛选
 
