@@ -9,7 +9,7 @@ NexusRouter 是开源 LLM API 网关：以 **OpenAI 兼容** API 统一接入多
 | 区域 | 技术 | 路径 |
 |------|------|------|
 | 网关（后端） | Go **1.24.x**，Gin，Wire，Zap，GORM / Postgres / Redis 等（见 `go.mod`） | `services/gateway/` |
-| 控制台（前端） | Node **≥22**，**pnpm 9**，Vite 6，React 19，TypeScript 5.7，Tailwind v4，antd 5 | `web/dashboard/` |
+| 控制台（前端） | Node **≥22**，**pnpm 9**，Vite 6，React 19，TypeScript 5.7，Tailwind v4，antd 6 | `web/dashboard/` |
 | 规范驱动 | [OpenSpec](https://github.com/fission-ai/openspec) | `openspec/`（`specs/` 能力规范，`changes/` 变更提案） |
 | CI | GitHub Actions | `.github/workflows/` |
 

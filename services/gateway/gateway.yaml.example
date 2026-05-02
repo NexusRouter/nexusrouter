@@ -35,6 +35,21 @@ rate_limit:
   rps_per_ip: 0
   rps_per_key: 0
 
+# 可选：多规则限流（priority 越大越优先；match_path_prefix 空表示全路径；未命中规则时回退到上方全局 rps）
+rate_limit_rules: []
+#  - id: chat-ip
+#    priority: 10
+#    match_path_prefix: /v1/chat
+#    dimension: ip
+#    rps: 5
+#    burst: 10
+#    enabled: true
+
+# 可选：IP 白/黑名单（off | allowlist | denylist）；与 /api/admin、/health、文档路径等公开端点无关（这些路径不校验名单）
+ip_access:
+  mode: off
+  cidrs: []
+
 proxy_access_log:
   enabled: false
   # 文件路径；空则仅 stdout（若实现 stdout 分支）
@@ -43,3 +58,13 @@ proxy_access_log:
   level: info
   max_size_mb: 100
   max_backups: 3
+
+# 可选：管理控制台运行态告警（错误率基于进程内指标；默认关闭）
+admin_alerts:
+  enabled: false
+  # (0,1]，例如 0.2 表示成功率低于 80% 时视为超阈值
+  error_rate_threshold: 0.2
+  # 预留；当前实现按固定 tick 评估
+  window_seconds: 0
+  # 连续超阈值周期数达到后升为 critical
+  consecutive_periods: 2

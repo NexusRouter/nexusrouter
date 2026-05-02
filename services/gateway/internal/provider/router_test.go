@@ -24,7 +24,7 @@ func TestProvideEngine_HealthAndNotFound(t *testing.T) {
 	require.NoError(t, err)
 	rt, err := runtime.NewStore(cfg)
 	require.NoError(t, err)
-	e := ProvideEngine(log, cfg, ks, rt)
+	e := ProvideEngine(log, cfg, ks, rt, ProvideMetrics())
 
 	t.Run("GET /health", func(t *testing.T) {
 		rec := httptest.NewRecorder()

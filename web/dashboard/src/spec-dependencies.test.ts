@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 describe('spec: 核心依赖可导入', () => {
   it('antd', async () => {
     const antd = await import('antd')
-    // antd 5 导出为 React 组件对象，非裸函数
+    // antd 6 导出为 React 组件对象，非裸函数
     expect(antd.Button).toBeDefined()
     expect(typeof antd.Button === 'function' || typeof antd.Button === 'object').toBe(
       true,

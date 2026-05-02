@@ -38,7 +38,7 @@ func TestProvideEngine_CORS_PreflightAllowedOrigin(t *testing.T) {
 	require.NoError(t, err)
 	rt, err := runtime.NewStore(cfg)
 	require.NoError(t, err)
-	e := ProvideEngine(log, cfg, ks, rt)
+	e := ProvideEngine(log, cfg, ks, rt, ProvideMetrics())
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodOptions, "/v1/chat/completions", nil)
@@ -71,7 +71,7 @@ func TestProvideEngine_CORS_DisallowedOriginNoAllowOrigin(t *testing.T) {
 	require.NoError(t, err)
 	rt, err := runtime.NewStore(cfg)
 	require.NoError(t, err)
-	e := ProvideEngine(log, cfg, ks, rt)
+	e := ProvideEngine(log, cfg, ks, rt, ProvideMetrics())
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodOptions, "/v1/chat/completions", nil)
@@ -79,6 +79,63 @@ func TestProvideEngine_CORS_DisallowedOriginNoAllowOrigin(t *testing.T) {
 	req.Header.Set("Access-Control-Request-Method", "POST")
 	e.ServeHTTP(rec, req)
 	require.Empty(t, rec.Header().Get("Access-Control-Allow-Origin"))
+}
+
+func TestProvideEngine_CORS_PreflightAfterYAMLReload(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	dir := t.TempDir()
+	yamlPath := filepath.Join(dir, "gateway.yaml")
+	err := os.WriteFile(yamlPath, []byte(`cors:
+  enabled: true
+  allow_origins:
+    - https://a.example.com
+  allow_methods: [GET, POST, OPTIONS]
+  allow_headers: [Authorization, Content-Type]
+`), 0o600)
+	require.NoError(t, err)
+
+	log := zap.NewNop()
+	cfg := &config.Config{
+		EnableSwaggerUI:   false,
+		GatewayAPIKeys:    []string{"k"},
+		GatewayConfigFile: yamlPath,
+	}
+	ks, err := keystore.New(cfg, log)
+	require.NoError(t, err)
+	rt, err := runtime.NewStore(cfg)
+	require.NoError(t, err)
+	e := ProvideEngine(log, cfg, ks, rt, ProvideMetrics())
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodOptions, "/v1/chat/completions", nil)
+	req.Header.Set("Origin", "https://a.example.com")
+	req.Header.Set("Access-Control-Request-Method", "POST")
+	e.ServeHTTP(rec, req)
+	require.Equal(t, "https://a.example.com", rec.Header().Get("Access-Control-Allow-Origin"))
+
+	err = os.WriteFile(yamlPath, []byte(`cors:
+  enabled: true
+  allow_origins:
+    - https://b.example.com
+  allow_methods: [GET, POST, OPTIONS]
+  allow_headers: [Authorization, Content-Type]
+`), 0o600)
+	require.NoError(t, err)
+	require.NoError(t, rt.Reload())
+
+	rec2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest(http.MethodOptions, "/v1/chat/completions", nil)
+	req2.Header.Set("Origin", "https://b.example.com")
+	req2.Header.Set("Access-Control-Request-Method", "POST")
+	e.ServeHTTP(rec2, req2)
+	require.Equal(t, "https://b.example.com", rec2.Header().Get("Access-Control-Allow-Origin"))
+
+	rec3 := httptest.NewRecorder()
+	req3 := httptest.NewRequest(http.MethodOptions, "/v1/chat/completions", nil)
+	req3.Header.Set("Origin", "https://a.example.com")
+	req3.Header.Set("Access-Control-Request-Method", "POST")
+	e.ServeHTTP(rec3, req3)
+	require.Empty(t, rec3.Header().Get("Access-Control-Allow-Origin"))
 }
 
 func TestProvideEngine_EnvOnlyNoGatewayYAML(t *testing.T) {
@@ -92,7 +149,7 @@ func TestProvideEngine_EnvOnlyNoGatewayYAML(t *testing.T) {
 	require.NoError(t, err)
 	rt, err := runtime.NewStore(cfg)
 	require.NoError(t, err)
-	e := ProvideEngine(log, cfg, ks, rt)
+	e := ProvideEngine(log, cfg, ks, rt, ProvideMetrics())
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
