@@ -33,7 +33,7 @@ admin_alerts:
 		GatewayAPIKeys:    []string{"k"},
 		GatewayConfigFile: yamlPath,
 	}
-	rt, err := runtime.NewStore(cfg)
+	rt, err := runtime.NewStore(cfg, nil)
 	require.NoError(t, err)
 	col := metrics.NewCollector()
 	for i := 0; i < 50; i++ {

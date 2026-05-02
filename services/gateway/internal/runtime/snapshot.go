@@ -4,6 +4,7 @@ package runtime
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -13,7 +14,9 @@ import (
 
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/config"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/ipaccess"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/repository"
 	"gopkg.in/yaml.v3"
+	"gorm.io/gorm"
 )
 
 // Upstream 单条上游定义。
@@ -102,25 +105,53 @@ type Snapshot struct {
 	AdminAlerts    AdminAlerts
 }
 
-// Store 保存当前快照并可从文件重载。
+// Store 保存当前快照并可从数据库或文件重载。
 type Store struct {
 	path string
 	cfg  *config.Config
+	db   *gorm.DB
 	v    atomic.Value // *Snapshot
 }
 
-// NewStore 基于静态 env 配置构造初始快照；若 gateway.yaml 存在则合并。
-func NewStore(cfg *config.Config) (*Store, error) {
+// NewStore 基于静态 env 与数据库（若提供）构造初始快照；否则若 gateway.yaml 存在则合并。
+func NewStore(cfg *config.Config, db *gorm.DB) (*Store, error) {
 	if cfg == nil {
 		cfg = config.Load()
 	}
-	s := &Store{path: strings.TrimSpace(cfg.GatewayConfigFile), cfg: cfg}
-	snap, err := buildSnapshot(cfg, s.path)
+	s := &Store{path: strings.TrimSpace(cfg.GatewayConfigFile), cfg: cfg, db: db}
+	snap, err := s.loadInitialSnapshot()
 	if err != nil {
 		return nil, err
 	}
 	s.v.Store(snap)
 	return s, nil
+}
+
+func (s *Store) loadInitialSnapshot() (*Snapshot, error) {
+	if s.db != nil {
+		return s.snapshotFromDB()
+	}
+	return buildSnapshot(s.cfg, s.path)
+}
+
+func (s *Store) snapshotFromDB() (*Snapshot, error) {
+	base := snapshotFromEnv(s.cfg)
+	var row repository.GatewaySnapshotRow
+	err := s.db.First(&row, 1).Error
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+	if err == nil && strings.TrimSpace(row.YAMLBody) != "" {
+		var f fileYAML
+		if err := yaml.Unmarshal([]byte(row.YAMLBody), &f); err != nil {
+			return nil, fmt.Errorf("runtime: 解析数据库内 YAML: %w", err)
+		}
+		mergeFile(base, &f)
+	}
+	if err := validateSnapshot(base); err != nil {
+		return nil, err
+	}
+	return base, nil
 }
 
 // Snapshot 返回当前指针（只读使用）。
@@ -139,8 +170,16 @@ func (s *Store) Snapshot() *Snapshot {
 // Path 返回配置文件路径（可能为空）。
 func (s *Store) Path() string { return s.path }
 
-// Reload 从磁盘重新加载；失败时保留旧快照并返回错误。
+// Reload 从数据库或磁盘重新加载；失败时保留旧快照并返回错误。
 func (s *Store) Reload() error {
+	if s.db != nil {
+		snap, err := s.snapshotFromDB()
+		if err != nil {
+			return err
+		}
+		s.v.Store(snap)
+		return nil
+	}
 	if strings.TrimSpace(s.path) == "" {
 		return nil
 	}

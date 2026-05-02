@@ -1,2 +1,2 @@
-// Package repository 存放 GORM 等持久化访问（后续实现）。
+// Package repository 提供 GORM 持久化：网关快照 YAML、API Key、管理员账号等。
 package repository

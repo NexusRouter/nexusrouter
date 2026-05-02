@@ -14,9 +14,10 @@ import (
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/runtime"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
-// RegisterAdminConsole 注册 /api/admin/v1/*（需 cfg.AdminConsoleConfigured() 且依赖非空）。
+// RegisterAdminConsole 注册 /api/admin/v1/*（需管理控制台已配置且 auth 非空）。
 func RegisterAdminConsole(
 	r *gin.Engine,
 	cfg *config.Config,
@@ -25,8 +26,9 @@ func RegisterAdminConsole(
 	rt *runtime.Store,
 	ks *keystore.Store,
 	log *zap.Logger,
+	db *gorm.DB,
 ) {
-	if cfg == nil || !cfg.AdminConsoleConfigured() || auth == nil {
+	if cfg == nil || !adminauth.IsConsoleConfigured(cfg, db) || auth == nil {
 		return
 	}
 

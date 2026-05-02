@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/config"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/repository"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 // CtxClaims Gin 上下文中 Claims 的键名。
@@ -23,14 +25,15 @@ type Claims struct {
 // Service 管理端认证。
 type Service struct {
 	cfg *config.Config
+	db  *gorm.DB
 }
 
 // New 若控制台未完整配置则返回 nil。
-func New(cfg *config.Config) *Service {
-	if cfg == nil || !cfg.AdminConsoleConfigured() {
+func New(cfg *config.Config, db *gorm.DB) *Service {
+	if !IsConsoleConfigured(cfg, db) {
 		return nil
 	}
-	return &Service{cfg: cfg}
+	return &Service{cfg: cfg, db: db}
 }
 
 // Login 校验用户名密码并返回 JWT、过期时刻与角色（admin | operator）。
@@ -45,6 +48,24 @@ func (s *Service) Login(username, password string, remember bool) (token string,
 		expDur = s.cfg.AdminRefreshExpire
 	}
 	exp = time.Now().UTC().Add(expDur)
+
+	if s.db != nil {
+		var row repository.AdminUserModel
+		if err := s.db.Where("username = ?", u).First(&row).Error; err == nil {
+			if err := bcrypt.CompareHashAndPassword([]byte(row.PasswordBcrypt), []byte(p)); err != nil {
+				return "", time.Time{}, "", errors.New("凭据无效")
+			}
+			r := strings.TrimSpace(row.Role)
+			if r != "admin" && r != "operator" {
+				return "", time.Time{}, "", errors.New("凭据无效")
+			}
+			tok, err := s.signJWT(r, row.Username, exp)
+			if err != nil {
+				return "", time.Time{}, "", err
+			}
+			return tok, exp, r, nil
+		}
+	}
 
 	opUser := strings.TrimSpace(s.cfg.AdminOperatorUsername)
 	opHash := strings.TrimSpace(s.cfg.AdminOperatorPasswordBcrypt)

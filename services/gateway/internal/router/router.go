@@ -13,6 +13,7 @@ import (
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/runtime"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // Deps 注册路由所需依赖。
@@ -22,6 +23,7 @@ type Deps struct {
 	KeyStore *keystore.Store
 	Runtime  *runtime.Store
 	Metrics  *metrics.Collector
+	DB       *gorm.DB
 }
 
 // Register 注册业务路由、OpenAPI 与 Chat 代理。
@@ -67,6 +69,6 @@ func Register(r *gin.Engine, d Deps) {
 		handler.ChatProxy(cfg, log, d.Runtime, d.Metrics),
 	)
 
-	adm := adminauth.New(cfg)
-	handler.RegisterAdminConsole(r, cfg, adm, d.Metrics, d.Runtime, d.KeyStore, log)
+	adm := adminauth.New(cfg, d.DB)
+	handler.RegisterAdminConsole(r, cfg, adm, d.Metrics, d.Runtime, d.KeyStore, log, d.DB)
 }
