@@ -35,7 +35,7 @@ if [ "$need_gw" = 1 ]; then
   fi
   if ! command -v golangci-lint >/dev/null 2>&1; then
     echo "未找到 golangci-lint。请安装与 CI 相同版本，例如:"
-    echo "  go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.1"
+    echo "  go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4"
     exit 1
   fi
   golangci-lint run
