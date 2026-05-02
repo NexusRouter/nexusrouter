@@ -63,6 +63,11 @@ func seedAdminUsers(cfg *config.Config, db *gorm.DB, log *zap.Logger) error {
 	if n > 0 {
 		return nil
 	}
+	var boot SystemBootstrapRow
+	if err := db.Select("initialized").First(&boot, SystemBootstrapSingletonPK).Error; err == nil && !boot.Initialized {
+		// 未完成首次向导时禁止从环境变量静默创建管理员，避免绕过向导。
+		return nil
+	}
 	u := strings.TrimSpace(cfg.AdminUsername)
 	h := strings.TrimSpace(cfg.AdminPasswordBcrypt)
 	if u != "" && h != "" {

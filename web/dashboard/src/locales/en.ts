@@ -27,6 +27,23 @@ export default {
     success: 'Signed in',
     fail: 'Sign-in failed; check username and password',
   },
+  setup: {
+    title: 'First-time setup',
+    intro:
+      'Create the super admin and optional site display name. Requires NEXUSROUTER_ADMIN_JWT_SECRET and admin console enabled on the gateway.',
+    adminUsername: 'Super admin username',
+    adminPassword: 'Super admin password',
+    siteName: 'Site display name (optional)',
+    submit: 'Complete setup',
+    needAdminUsername: 'Please enter username',
+    needAdminPassword: 'Please enter password',
+    passwordMin: 'Password must be at least 8 characters',
+    success: 'Setup complete; please sign in',
+    fail: 'Setup failed; check gateway logs',
+    alreadyDone: 'Already initialized; opening sign-in',
+    inProgress: 'Another session is initializing; try again shortly',
+    jwtMissing: 'Configure NEXUSROUTER_ADMIN_JWT_SECRET on the gateway first',
+  },
   errors: {
     forbidden: 'You do not have permission (operator is read-only).',
   },

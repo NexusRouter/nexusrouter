@@ -1,10 +1,16 @@
 /**
  * 对应 dashboard-frontend spec：Tailwind 实用类与 antd 集成在根页面可见。
  */
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import App from './App'
+
+vi.mock('./services/bootstrap', () => ({
+  fetchBootstrapStatus: vi.fn(() =>
+    Promise.resolve({ initialized: true, phase: 'completed' as const }),
+  ),
+}))
 
 describe('spec: UI 基线', () => {
   it('登录页容器包含 Tailwind 布局类', () => {
@@ -17,12 +23,14 @@ describe('spec: UI 基线', () => {
     expect(root).toBeTruthy()
   })
 
-  it('渲染登录主按钮', () => {
+  it('渲染登录主按钮', async () => {
     render(
       <MemoryRouter initialEntries={['/login']}>
         <App />
       </MemoryRouter>,
     )
-    expect(screen.getByRole('button', { name: /登\s*录/ })).toBeTruthy()
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /登\s*录/ })).toBeTruthy()
+    })
   })
 })

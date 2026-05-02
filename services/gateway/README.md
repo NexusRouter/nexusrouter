@@ -99,10 +99,21 @@ OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api
 | `NEXUSROUTER_HTTP_LISTEN_ADDR`             | （可选）网关 HTTP 监听地址，默认 `:8080`。 |
 | `NEXUSROUTER_ADMIN_PASSWORD_RESET_SMTP`    | （预留）邮件重置相关配置；未配置时「忘记密码」仅返回运维指引。                                                                                                                    |
 
+### 首次初始化（`/api/bootstrap/v1`）
+
+数据库表 **`system_bootstrap`** 保存全局 **`initialized`** 标志。未完成首次向导时，网关对除白名单外的 HTTP 请求返回 **403**（`code: BOOTSTRAP_REQUIRED`）；白名单含 **`GET /health`**、**`GET /api/bootstrap/v1/status`**、**`POST /api/bootstrap/v1/complete`**、**`POST /api/admin/v1/auth/login`**、**`GET /api/admin/v1/auth/password-reset-info`** 及 OpenAPI/Swagger 静态路径等。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/bootstrap/v1/status` | 匿名；返回 `initialized`（bool）、`phase`（`ready` \| `initializing` \| `completed`）。 |
+| `POST` | `/api/bootstrap/v1/complete` | 匿名；body：`admin_username`、`admin_password`（≥8）、可选 `site_display_name`；**须**已配置 **`NEXUSROUTER_ADMIN_JWT_SECRET`** 且启用管理控制台。成功至多一次；重复返回 **409**（`BOOTSTRAP_ALREADY_COMPLETED`）。 |
+| `POST` | `/api/bootstrap/v1/reset` | 需 **`Authorization: Bearer`** 且 JWT `role` 为 **`admin`**（非 operator）；清空 **`admin_users`** 并将 **`initialized`** 置回 **false**，用于运维重新走向导。 |
+
+在 **`initialized=false`** 时，**不会**从环境变量 **`NEXUSROUTER_ADMIN_USERNAME` / `NEXUSROUTER_ADMIN_PASSWORD_BCRYPT`** 静默创建管理员（避免绕过向导）；向导完成后或 **`initialized=true`** 且库中仍无用户时，仍可按既有逻辑从 env 导入。
 
 ### 管理控制台 API（`/api/admin/v1`）
 
-当 `**NEXUSROUTER_ENABLE_ADMIN_CONSOLE=true**` 且 JWT 密钥已配置，且 **数据库中存在 admin 用户** 或环境变量中已配置 **`NEXUSROUTER_ADMIN_USERNAME`** + **`NEXUSROUTER_ADMIN_PASSWORD_BCRYPT`** 时注册（首次启动可将 env 账号导入库）：
+当 `**NEXUSROUTER_ENABLE_ADMIN_CONSOLE=true**` 且 JWT 密钥已配置，且（**未完成首次向导** 或 **数据库中存在 admin 用户** 或环境变量中已配置 **`NEXUSROUTER_ADMIN_USERNAME`** + **`NEXUSROUTER_ADMIN_PASSWORD_BCRYPT`**）时注册：
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
