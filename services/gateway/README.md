@@ -65,6 +65,7 @@ OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api
 ### 模型库（四表聚合，无历史迁移）
 
 - **新表**（AutoMigrate）：`model_vendor`、`model_base`、`model_upstream`（含 **`base_url` / `api_key`**）、`model_instance`（**`provider_model_code`、priority、weight、is_official** 等）。**不提供**自旧 `model_catalog_entries` 的自动迁移；新部署直接建表即可。
+- **官方厂商预置**：进程启动迁移完成后，按 **`vendor_code`** 幂等插入一组 **`vendor_type=1`** 的 **`model_vendor`** 行（OpenAI、Anthropic、DashScope 等，见 **`internal/repository/official_vendors_seed.go`**）；已存在相同编码则**不覆盖**管理员数据；**不**预置上游或实例。预置 **`logo`** 多为站内路径 **`/vendor-logos/…`**（由前端静态资源提供）；亦可在管理端 **上传图标**（`**POST /api/admin/v1/model-library/vendor-logo**`，写入 **`/uploads/vendor-logos/<uuid>.<ext>`** 并回填 **`logo`**）。
 - **至少存在一条 `model_instance`** 时，公开 **`/v1/models`** 与 **Chat** 仅走上述四表，**不并存** `gateway.yaml` 上游。
 - 管理端：`/api/admin/v1/model-library/vendors|bases|upstreams|instances` 的 REST（需管理 JWT；写操作 **operator 只读** 策略不变）。
 - **从上游同步**：`POST /api/admin/v1/model-library/sync`，请求体 **`{"model_upstream_id":123,"bearer":"可选"}`**；向该 **`model_upstream`** 行的 **`{base_url}/v1/models`** 发起 GET；**bearer** 缺省顺序：请求体 → 行内 **`api_key`** → **`NEXUSROUTER_UPSTREAM_API_KEY`**。响应仅返回模型 id 列表（不自动入库）。
@@ -87,6 +88,7 @@ OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api
 | `NEXUSROUTER_UPSTREAM_BASE_URL`              | **单上游**（遗留）：当 `BASE_URLS` 为空时使用；未配置任何上游时 `POST /v1/chat/completions` 返回 **503**。                                                                               |
 | `NEXUSROUTER_DATABASE_URL`                   | **Postgres** 连接串；**非空**时启用 Postgres 持久化（与 GORM 兼容的 DSN）。为空则使用下方 SQLite 文件。                                                                                     |
 | `NEXUSROUTER_SQLITE_PATH`                    | **SQLite** 文件路径；在 `DATABASE_URL` 为空时生效。未设置时默认 `**services/gateway/gateway.db**`（由 `internal/repository` 定位模块根，**不依赖 cwd**）。仅分发二进制、无源码树时建议显式设置本变量。                                                                                          |
+| `NEXUSROUTER_UPLOADS_DIR`                    | （可选）**管理端上传**根目录（厂商图标等）；空则默认 `**services/gateway/data/uploads**`（相对模块根）。文件经 `**GET /uploads/**` 匿名可读，文件名随机 UUID，请勿将敏感资料放入此目录。                                                                                          |
 | `NEXUSROUTER_GATEWAY_KEYS_FILE`              | **API 密钥 JSON 文件路径**（可选）：可作为**首次启动空库**时的导入源；日常真源为数据库。未配置文件且无库内密钥、无 `GATEWAY_API_KEYS` 时，受保护路由将无可用密钥。                                                           |
 | `NEXUSROUTER_GATEWAY_API_KEYS`               | **遗留**：逗号分隔明文密钥；可作为空库导入源或测试。                                                                                                                                   |
 | `NEXUSROUTER_ADMIN_RELOAD_TOKEN`             | 非空时注册 `**POST /internal/reload-keys`**、`**POST /internal/reload-config`**、`**PUT /internal/upstream/active**`；请求须 `Authorization: Bearer <与本变量相同的令牌>`。         |

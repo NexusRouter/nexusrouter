@@ -1,6 +1,7 @@
 import { Card, Col, Row, Statistic, Table, Typography } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { PageError } from '../components/PageError'
 import { api } from '../services/api'
 
 /** 仪表盘：聚合指标与健康状态。 */
@@ -19,6 +20,16 @@ export default function DashboardPage() {
 
   const m = q.data
   const errToday = (m?.errors_today_by_code as Record<string, number>) ?? {}
+
+  if (q.isError) {
+    return (
+      <PageError
+        title={t('pages.dashboard.loadError')}
+        retryLabel={t('common.pageError.retry')}
+        onRetry={() => q.refetch()}
+      />
+    )
+  }
 
   return (
     <div className="space-y-4">

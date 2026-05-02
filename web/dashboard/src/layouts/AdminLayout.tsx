@@ -24,6 +24,8 @@ const { Content } = Layout
 
 type NavItem = { key: string; path: string; labelKey: string; icon: ReactNode }
 
+type NavGroup = { domainKey: string; items: NavItem[] }
+
 /** 管理端壳层：渐变顶栏、桌面侧栏与移动抽屉导航；主题由全局 ConfigProvider 控制。 */
 export default function AdminLayout() {
   const { t } = useTranslation()
@@ -33,19 +35,54 @@ export default function AdminLayout() {
   const { token } = theme.useToken()
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  const items: NavItem[] = [
-    { key: 'dashboard', path: '/dashboard', labelKey: 'layout.menuDashboard', icon: <BarChart3 className="h-4 w-4" /> },
-    { key: 'upstreams', path: '/upstreams', labelKey: 'layout.menuUpstreams', icon: <Server className="h-4 w-4" /> },
-    { key: 'model-library', path: '/model-library', labelKey: 'layout.menuModelLibrary', icon: <Boxes className="h-4 w-4" /> },
-    { key: 'api-keys', path: '/api-keys', labelKey: 'layout.menuApiKeys', icon: <KeyRound className="h-4 w-4" /> },
-    { key: 'logs', path: '/logs', labelKey: 'layout.menuLogs', icon: <ScrollText className="h-4 w-4" /> },
-    {
-      key: 'gateway-policy',
-      path: '/gateway/policy',
-      labelKey: 'layout.menuGatewayPolicy',
-      icon: <SlidersHorizontal className="h-4 w-4" />,
-    },
-    { key: 'settings', path: '/settings', labelKey: 'layout.menuSettings', icon: <Settings className="h-4 w-4" /> },
+  const dashboard: NavItem = {
+    key: 'dashboard',
+    path: '/dashboard',
+    labelKey: 'consoleTerms.navDashboard',
+    icon: <BarChart3 className="h-4 w-4" />,
+  }
+  const logs: NavItem = {
+    key: 'logs',
+    path: '/logs',
+    labelKey: 'consoleTerms.navAccessLogs',
+    icon: <ScrollText className="h-4 w-4" />,
+  }
+  const upstreams: NavItem = {
+    key: 'upstreams',
+    path: '/upstreams',
+    labelKey: 'consoleTerms.navUpstreams',
+    icon: <Server className="h-4 w-4" />,
+  }
+  const modelLibrary: NavItem = {
+    key: 'model-library',
+    path: '/model-library',
+    labelKey: 'consoleTerms.navModelLibrary',
+    icon: <Boxes className="h-4 w-4" />,
+  }
+  const apiKeys: NavItem = {
+    key: 'api-keys',
+    path: '/api-keys',
+    labelKey: 'consoleTerms.navApiKeys',
+    icon: <KeyRound className="h-4 w-4" />,
+  }
+  const gatewayPolicy: NavItem = {
+    key: 'gateway-policy',
+    path: '/gateway/policy',
+    labelKey: 'consoleTerms.navGatewayPolicy',
+    icon: <SlidersHorizontal className="h-4 w-4" />,
+  }
+  const settings: NavItem = {
+    key: 'settings',
+    path: '/settings',
+    labelKey: 'consoleTerms.navSettings',
+    icon: <Settings className="h-4 w-4" />,
+  }
+
+  const navGroups: NavGroup[] = [
+    { domainKey: 'consoleTerms.domainOverview', items: [dashboard, logs] },
+    { domainKey: 'consoleTerms.domainTraffic', items: [upstreams, modelLibrary, apiKeys] },
+    { domainKey: 'consoleTerms.domainSecurity', items: [gatewayPolicy] },
+    { domainKey: 'consoleTerms.domainSystem', items: [settings] },
   ]
 
   const selected = (() => {
@@ -56,9 +93,11 @@ export default function AdminLayout() {
     if (p.startsWith('/gateway')) {
       return 'gateway-policy'
     }
-    for (const it of items) {
-      if (it.key !== 'dashboard' && p.startsWith(it.path)) {
-        return it.key
+    for (const g of navGroups) {
+      for (const it of g.items) {
+        if (it.key !== 'dashboard' && p.startsWith(it.path)) {
+          return it.key
+        }
       }
     }
     return 'dashboard'
@@ -70,36 +109,45 @@ export default function AdminLayout() {
   }
 
   const NavList = ({ onPick }: { onPick?: () => void }) => (
-    <nav className="flex flex-col gap-1.5">
-      {items.map((it) => {
-        const active = selected === it.key
-        return (
-          <button
-            key={it.key}
-            type="button"
-            onClick={() => {
-              navigateTo(it.path)
-              onPick?.()
-            }}
-            className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition-all duration-300 active:scale-95 ${
-              active
-                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25'
-                : 'text-slate-700 hover:scale-[1.02] hover:bg-white/80 hover:text-indigo-600 hover:shadow-md hover:shadow-indigo-100/50 dark:text-slate-200 dark:hover:bg-slate-800/80 dark:hover:text-indigo-300'
-            } `}
-          >
-            <span
-              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${
-                active
-                  ? 'bg-white/20 text-white'
-                  : 'bg-slate-100 text-slate-600 group-hover:bg-indigo-100 group-hover:text-indigo-600 dark:bg-slate-800 dark:text-slate-400 dark:group-hover:bg-indigo-900/50 dark:group-hover:text-indigo-300'
-              }`}
-            >
-              {it.icon}
-            </span>
-            <span className="relative z-10 tracking-wide">{t(it.labelKey)}</span>
-          </button>
-        )
-      })}
+    <nav className="flex flex-col gap-4">
+      {navGroups.map((g) => (
+        <div key={g.domainKey}>
+          <div className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            {t(g.domainKey)}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {g.items.map((it) => {
+              const active = selected === it.key
+              return (
+                <button
+                  key={it.key}
+                  type="button"
+                  onClick={() => {
+                    navigateTo(it.path)
+                    onPick?.()
+                  }}
+                  className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition-all duration-300 active:scale-95 ${
+                    active
+                      ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25'
+                      : 'text-slate-700 hover:scale-[1.02] hover:bg-white/80 hover:text-indigo-600 hover:shadow-md hover:shadow-indigo-100/50 dark:text-slate-200 dark:hover:bg-slate-800/80 dark:hover:text-indigo-300'
+                  } `}
+                >
+                  <span
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${
+                      active
+                        ? 'bg-white/20 text-white'
+                        : 'bg-slate-100 text-slate-600 group-hover:bg-indigo-100 group-hover:text-indigo-600 dark:bg-slate-800 dark:text-slate-400 dark:group-hover:bg-indigo-900/50 dark:group-hover:text-indigo-300'
+                    }`}
+                  >
+                    {it.icon}
+                  </span>
+                  <span className="relative z-10 tracking-wide">{t(it.labelKey)}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ))}
     </nav>
   )
 

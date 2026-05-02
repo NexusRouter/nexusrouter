@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Collapse,
+  Tooltip,
   Form,
   Input,
   InputNumber,
@@ -272,9 +273,13 @@ export default function SystemSettingsPage() {
             <Switch defaultChecked />
           </Form.Item>
           <Space>
-            <Button type="primary" htmlType="submit" loading={put.isPending} disabled={readOnly}>
-              {t('settings.save')}
-            </Button>
+            <Tooltip title={readOnly ? t('settings.operatorSaveTooltip') : undefined}>
+              <span className="inline-block">
+                <Button type="primary" htmlType="submit" loading={put.isPending} disabled={readOnly}>
+                  {t('settings.save')}
+                </Button>
+              </span>
+            </Tooltip>
           </Space>
         </Form>
       </Card>

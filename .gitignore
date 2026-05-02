@@ -79,6 +79,9 @@ tmp/
 services/gateway/gateway.db
 services/gateway/**/gateway.db
 
+# Gateway admin uploads (vendor logos; override: NEXUSROUTER_UPLOADS_DIR)
+services/gateway/data/uploads/
+
 # JetBrains IDE (local)
 .idea/
 

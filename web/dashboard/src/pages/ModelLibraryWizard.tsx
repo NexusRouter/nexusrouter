@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { VendorLogoField } from '../components/VendorLogoField'
 import { api } from '../services/api'
 
 type Vendor = {
@@ -299,9 +300,7 @@ export function ModelLibraryWizard({
               <Form.Item name="vendor_code" label={t('pages.modelLibrary.vendorCode')} rules={[{ required: true }]}>
                 <Input />
               </Form.Item>
-              <Form.Item name="logo" label={t('pages.modelLibrary.logoUrl')}>
-                <Input placeholder="https://..." />
-              </Form.Item>
+              <VendorLogoField />
               <Form.Item name="status" label={t('pages.modelLibrary.status')} initialValue={1}>
                 <Select
                   options={[
