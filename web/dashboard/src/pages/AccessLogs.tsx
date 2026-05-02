@@ -1,5 +1,6 @@
-import { App, Button, Form, Input, InputNumber, Space, Table, Typography } from 'antd'
+import { App, Button, DatePicker, Form, Input, InputNumber, Space, Table, Typography } from 'antd'
 import { useQuery } from '@tanstack/react-query'
+import type { Dayjs } from 'dayjs'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../services/api'
@@ -99,15 +100,19 @@ export default function AccessLogsPage() {
       <Form
         layout="vertical"
         initialValues={{
-          from: '',
-          to: '',
           path_prefix: '',
           limit: 50,
         }}
         onFinish={(vals) => {
+          const fromD = vals.from as Dayjs | null | undefined
+          const toD = vals.to as Dayjs | null | undefined
+          if (fromD && toD && fromD.isAfter(toD)) {
+            message.warning(t('pages.accessLogs.rangeInvalid'))
+            return
+          }
           const f: Filters = {
-            from: String(vals.from ?? ''),
-            to: String(vals.to ?? ''),
+            from: fromD ? fromD.toISOString() : '',
+            to: toD ? toD.toISOString() : '',
             path_prefix: String(vals.path_prefix ?? ''),
             status_min: vals.status_min,
             status_max: vals.status_max,
@@ -120,11 +125,23 @@ export default function AccessLogsPage() {
         }}
       >
         <Space wrap className="w-full">
-          <Form.Item name="from" label={t('pages.accessLogs.labelFrom')} className="!mb-0 min-w-[200px]">
-            <Input placeholder={t('common.optional')} />
+          <Form.Item name="from" label={t('pages.accessLogs.labelFrom')} className="!mb-0 min-w-[240px]">
+            <DatePicker
+              showTime
+              allowClear
+              className="w-full"
+              format="YYYY-MM-DD HH:mm:ss"
+              placeholder={t('common.optional')}
+            />
           </Form.Item>
-          <Form.Item name="to" label={t('pages.accessLogs.labelTo')} className="!mb-0 min-w-[200px]">
-            <Input placeholder={t('common.optional')} />
+          <Form.Item name="to" label={t('pages.accessLogs.labelTo')} className="!mb-0 min-w-[240px]">
+            <DatePicker
+              showTime
+              allowClear
+              className="w-full"
+              format="YYYY-MM-DD HH:mm:ss"
+              placeholder={t('common.optional')}
+            />
           </Form.Item>
           <Form.Item name="path_prefix" label={t('pages.accessLogs.labelPathPrefix')} className="!mb-0 min-w-[160px]">
             <Input placeholder="/v1/chat" />

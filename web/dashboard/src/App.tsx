@@ -14,6 +14,7 @@ import RateLimitRulesPage from './pages/RateLimitRules'
 import CorsSettingsPage from './pages/CorsSettings'
 import IpAccessPage from './pages/IpAccess'
 import SystemSettingsPage from './pages/SystemSettings'
+import ModelLibraryPage from './pages/ModelLibrary'
 import { useAuthStore } from './stores/authStore'
 import { useEffect, useState } from 'react'
 import axios from 'axios'
@@ -116,6 +117,7 @@ function LocalizedApp() {
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/upstreams" element={<UpstreamsPage />} />
+                <Route path="/model-library" element={<ModelLibraryPage />} />
                 <Route path="/api-keys" element={<ApiKeysPage />} />
                 <Route path="/logs" element={<AccessLogsPage />} />
                 <Route path="/rate-limits" element={<RateLimitRulesPage />} />

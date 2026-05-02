@@ -11,10 +11,12 @@ import (
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/accesslog"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/config"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/metrics"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/repository"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/runtime"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/upstream"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 var hopByHopHeaders = []string{
@@ -43,7 +45,7 @@ func (w *captureWriter) Write(b []byte) (int, error) {
 
 // ChatProxy 将 POST /v1/chat/completions 反向代理至运行时选中的上游。
 // 引擎级中间件顺序见 provider：CORS → RequestID → Recovery → ErrorJSON → IP 限流 →（本链）鉴权 → Key 限流 → ChatProxy。
-func ChatProxy(cfg *config.Config, log *zap.Logger, rt *runtime.Store, col *metrics.Collector) gin.HandlerFunc {
+func ChatProxy(cfg *config.Config, log *zap.Logger, rt *runtime.Store, col *metrics.Collector, db *gorm.DB) gin.HandlerFunc {
 	pick := upstream.NewPicker()
 	transport := &http.Transport{
 		ResponseHeaderTimeout: cfg.UpstreamTimeout,
@@ -78,6 +80,7 @@ func ChatProxy(cfg *config.Config, log *zap.Logger, rt *runtime.Store, col *metr
 				WriteGatewayError(c, http.StatusBadRequest, "INVALID_REQUEST", "无法读取请求体")
 				return
 			}
+			body = repository.RewriteChatCompletionsModelBody(body, db, upID)
 			c.Request.Body = io.NopCloser(bytes.NewReader(body))
 			c.Request.ContentLength = int64(len(body))
 		}
