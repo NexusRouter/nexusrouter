@@ -51,7 +51,7 @@ ip_access:
   cidrs: []
 
 proxy_access_log:
-  enabled: false
+  enabled: true
   # 文件路径；空则仅 stdout（若实现 stdout 分支）
   path: /var/log/nexusrouter/access.log
   # info | error

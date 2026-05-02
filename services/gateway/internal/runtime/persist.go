@@ -50,6 +50,7 @@ func (s *Store) PersistCurrent() error {
 }
 
 func marshalFileYAML(s *Snapshot) ([]byte, error) {
+	en := s.ProxyAccessLog.Enabled
 	f := fileYAML{
 		Upstreams:      append([]Upstream(nil), s.Upstreams...),
 		Routing:        s.Routing,
@@ -57,8 +58,14 @@ func marshalFileYAML(s *Snapshot) ([]byte, error) {
 		RateLimit:      s.RateLimit,
 		RateLimitRules: append([]RateLimitRule(nil), s.RateLimitRules...),
 		IPAccess:       IPAccess{Mode: s.IPAccess.Mode, CIDRs: append([]string(nil), s.IPAccess.CIDRs...)},
-		ProxyAccessLog: s.ProxyAccessLog,
-		AdminAlerts:    s.AdminAlerts,
+		ProxyAccessLog: proxyAccessLogYAML{
+			Enabled:    &en,
+			Path:       s.ProxyAccessLog.Path,
+			Level:      s.ProxyAccessLog.Level,
+			MaxSizeMB:  s.ProxyAccessLog.MaxSizeMB,
+			MaxBackups: s.ProxyAccessLog.MaxBackups,
+		},
+		AdminAlerts: s.AdminAlerts,
 	}
 	return yaml.Marshal(&f)
 }
