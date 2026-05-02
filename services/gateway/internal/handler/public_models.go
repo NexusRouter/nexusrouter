@@ -11,12 +11,58 @@ import (
 	"gorm.io/gorm"
 )
 
-// openAIModelJSON OpenAI List models 单条子集。
+// openAIModelPermissionJSON 与常见 OpenAI model 列表项中 permission 元素形状对齐。
+type openAIModelPermissionJSON struct {
+	ID                 string  `json:"id"`
+	Object             string  `json:"object"`
+	Created            int64   `json:"created"`
+	AllowCreateEngine  bool    `json:"allow_create_engine"`
+	AllowSampling      bool    `json:"allow_sampling"`
+	AllowLogprobs      bool    `json:"allow_logprobs"`
+	AllowSearchIndices bool    `json:"allow_search_indices"`
+	AllowView          bool    `json:"allow_view"`
+	AllowFineTuning    bool    `json:"allow_fine_tuning"`
+	Organization       string  `json:"organization"`
+	Group              *string `json:"group"`
+	IsBlocking         bool    `json:"is_blocking"`
+}
+
+// openAIModelJSON OpenAI List/Retrieve models 单条（含 permission、root，便于旧版客户端解析）。
 type openAIModelJSON struct {
-	ID      string `json:"id"`
-	Object  string `json:"object"`
-	Created int64  `json:"created"`
-	OwnedBy string `json:"owned_by"`
+	ID         string                      `json:"id"`
+	Object     string                      `json:"object"`
+	Created    int64                       `json:"created"`
+	OwnedBy    string                      `json:"owned_by"`
+	Permission []openAIModelPermissionJSON `json:"permission"`
+	Root       string                      `json:"root"`
+	Parent     *string                     `json:"parent,omitempty"`
+}
+
+var defaultOpenAIModelPermissionEntry = openAIModelPermissionJSON{
+	ID:                 "modelperm-nexusrouter-default",
+	Object:             "model_permission",
+	Created:            1626777600,
+	AllowCreateEngine:  true,
+	AllowSampling:      true,
+	AllowLogprobs:      true,
+	AllowSearchIndices: false,
+	AllowView:          true,
+	AllowFineTuning:    false,
+	Organization:       "*",
+	Group:              nil,
+	IsBlocking:         false,
+}
+
+func newOpenAIModelItem(id, ownedBy string, created int64) openAIModelJSON {
+	return openAIModelJSON{
+		ID:         id,
+		Object:     "model",
+		Created:    created,
+		OwnedBy:    ownedBy,
+		Permission: []openAIModelPermissionJSON{defaultOpenAIModelPermissionEntry},
+		Root:       id,
+		Parent:     nil,
+	}
 }
 
 // ListModels 返回 GET /v1/models。
@@ -42,12 +88,7 @@ func ListModels(db *gorm.DB, rt *runtime.Store) gin.HandlerFunc {
 				if cr == 0 {
 					cr = 1626777600
 				}
-				out = append(out, openAIModelJSON{
-					ID:      r.ModelCode,
-					Object:  "model",
-					Created: cr,
-					OwnedBy: ob,
-				})
+				out = append(out, newOpenAIModelItem(r.ModelCode, ob, cr))
 			}
 			c.JSON(http.StatusOK, gin.H{"object": "list", "data": out})
 			return
@@ -69,12 +110,7 @@ func ListModels(db *gorm.DB, rt *runtime.Store) gin.HandlerFunc {
 			if cr == 0 {
 				cr = 1626777600
 			}
-			out = append(out, openAIModelJSON{
-				ID:      r.CatalogID,
-				Object:  "model",
-				Created: cr,
-				OwnedBy: ob,
-			})
+			out = append(out, newOpenAIModelItem(r.CatalogID, ob, cr))
 		}
 		c.JSON(http.StatusOK, gin.H{"object": "list", "data": out})
 	}
@@ -113,12 +149,7 @@ func RetrieveModel(db *gorm.DB, rt *runtime.Store) gin.HandlerFunc {
 			if cr == 0 {
 				cr = 1626777600
 			}
-			c.JSON(http.StatusOK, openAIModelJSON{
-				ID:      ent.ModelCode,
-				Object:  "model",
-				Created: cr,
-				OwnedBy: ob,
-			})
+			c.JSON(http.StatusOK, newOpenAIModelItem(ent.ModelCode, ob, cr))
 			return
 		}
 		snap := rt.Snapshot()
@@ -144,12 +175,7 @@ func RetrieveModel(db *gorm.DB, rt *runtime.Store) gin.HandlerFunc {
 		if cr == 0 {
 			cr = 1626777600
 		}
-		c.JSON(http.StatusOK, openAIModelJSON{
-			ID:      ent.ID,
-			Object:  "model",
-			Created: cr,
-			OwnedBy: ob,
-		})
+		c.JSON(http.StatusOK, newOpenAIModelItem(ent.ID, ob, cr))
 	}
 }
 

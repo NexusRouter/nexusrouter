@@ -54,7 +54,7 @@ OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api
 
 ### 中间件与限流顺序
 
-引擎级：**CORS**（可选，来自 `gateway.yaml` 的 `cors`）→ `**X-Request-ID`** → **Recovery** → **统一 JSON 错误** → **按 IP 限流**（全局 `rate_limit.rps_per_ip` 与 `rate_limit_rules` 中 `dimension: ip` 的规则，鉴权前；`/health`、`/internal*`、`/api/admin*` 与 **OPTIONS** 跳过）→ **IP 名单**（`ip_access`；跳过路径同上）→ 业务路由。
+引擎级：**CORS**（可选，来自 `gateway.yaml` 的 `cors`）→ `**X-Request-ID`** → **`Accept-Language` 归约**（`zh-CN` / `en`，写入上下文）→ **Gzip 请求体解码**（当 **`Content-Encoding: gzip`** 时解压并去头）→ **Recovery** → **统一 JSON 错误** → **`/uploads/` 静态成功响应 Cache-Control**（未已有头时补充长期 `max-age`）→ **按 IP 限流**（全局 `rate_limit.rps_per_ip` 与 `rate_limit_rules` 中 `dimension: ip` 的规则，鉴权前；`/health`、`/internal*`、`/api/admin*` 与 **OPTIONS** 跳过）→ **IP 名单**（`ip_access`；跳过路径同上）→ 业务路由。
 
 `GET /v1/models` 与 `GET /v1/models/:model` 链：**GatewayAuth**（与 Chat 相同；**OPTIONS** 跳过）→ 返回模型库聚合结果（不转发上游）。
 

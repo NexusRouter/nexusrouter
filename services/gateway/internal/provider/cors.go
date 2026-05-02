@@ -11,7 +11,7 @@ import (
 )
 
 // DynamicCORS 按运行时快照构造 CORS；未在 gateway.yaml 启用 CORS 时，对常见本机开发 Origin（localhost / 127.0.0.1 / ::1）回显 Access-Control-Allow-Origin，避免仪表盘直连网关时出现浏览器预检失败。
-// 引擎级顺序：CORS → RequestID → Recovery → ErrorJSON → IP 限流 → …（见 ProvideEngine 注释）。
+// 引擎级顺序：CORS → RequestID → AcceptLanguage → ZapHTTPAccessLog → Recovery → ErrorJSON → RootStrictNoCache → UploadsStaticCache → IP 限流 → …（见 ProvideEngine 注释）。
 func DynamicCORS(store *runtime.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if store == nil {
@@ -51,7 +51,7 @@ func applyLocalDevCORSIfNeeded(c *gin.Context) {
 		AllowMethods:    []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},
 		AllowHeaders: []string{
 			"Origin", "Content-Type", "Accept", "Authorization",
-			"X-Requested-With", "X-Request-ID",
+			"X-Requested-With", "X-Request-ID", "X-Oneapi-Request-Id",
 		},
 		AllowCredentials: false,
 		MaxAge:           12 * time.Hour,

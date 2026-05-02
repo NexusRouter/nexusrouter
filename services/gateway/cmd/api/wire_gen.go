@@ -14,11 +14,11 @@ import (
 // Injectors from wire.go:
 
 func InitializeApp() (*app.Application, error) {
-	logger, err := provider.ProvideLogger()
+	config := provider.ProvideConfig()
+	logger, err := provider.ProvideLogger(config)
 	if err != nil {
 		return nil, err
 	}
-	config := provider.ProvideConfig()
 	db, err := provider.ProvideDB(config, logger)
 	if err != nil {
 		return nil, err

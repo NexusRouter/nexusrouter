@@ -28,7 +28,7 @@ func NewApplication(log *zap.Logger, engine *gin.Engine, ks *keystore.Store, rt 
 	return &Application{Log: log, Engine: engine, KeyStore: ks, Runtime: rt, Config: cfg, Metrics: col}
 }
 
-// Run 启动 HTTP 服务；监听地址来自 `NEXUSROUTER_HTTP_LISTEN_ADDR`（默认 `:8080`）。若密钥库或网关配置基于文件则注册 SIGHUP 热加载（非 Windows）。
+// Run 启动 HTTP 服务；监听地址来自 config.Load 装配的 HTTPListenAddr（默认 `:8080`；未设置 NEXUSROUTER_HTTP_LISTEN_ADDR 时可由环境变量 PORT 推导）。若密钥库或网关配置基于文件则注册 SIGHUP 热加载（非 Windows）。
 func (a *Application) Run() error {
 	if a.KeyStore != nil {
 		a.KeyStore.ListenSIGHUP(a.Log)

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"io"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -20,6 +21,8 @@ type Config struct {
 	UpstreamBaseURLs []string
 	// UpstreamTimeout 等待上游响应头的上限（非流式整响应仍受 Transport 约束）。
 	UpstreamTimeout time.Duration
+	// UpstreamHTTPProxy 发往 Chat 上游的 HTTP 客户端使用的代理 URL（如 http://host:port）；空则沿用 net/http 默认（含 HTTP_PROXY 等环境变量）。
+	UpstreamHTTPProxy string
 	// GatewayAPIKeys 遗留：逗号分隔明文密钥；当 GatewayKeysFile 为空时用于构造密钥库。
 	GatewayAPIKeys []string
 	// GatewayKeysFile JSON 密钥文件路径；非空时优先于 GatewayAPIKeys。
@@ -36,10 +39,16 @@ type Config struct {
 	DatabaseURL string
 	// SQLitePath SQLite 数据库文件路径；DatabaseURL 为空时生效，默认 gateway.db。
 	SQLitePath string
+	// SQLiteBusyTimeoutMS SQLite 打开连接串中的 _busy_timeout（毫秒）；<=0 或未设置时在 repository 层按 3000 处理；Postgres 模式不使用。
+	SQLiteBusyTimeoutMS int
 	// UploadsDir 上传文件根目录（厂商图标等）；空则默认 services/gateway/data/uploads（相对模块根）。可设 NEXUSROUTER_UPLOADS_DIR。
 	UploadsDir string
-	// HTTPListenAddr Gin 监听地址，如 `:8080`；默认 `:8080`。
+	// HTTPListenAddr Gin 监听地址，如 `:8080`；默认 `:8080`。未设置 NEXUSROUTER_HTTP_LISTEN_ADDR 时，Load 可根据环境变量 PORT 推导。
 	HTTPListenAddr string
+	// LogDir 非空时 Zap 除标准错误外追加写入该目录下持久化 JSON 日志文件；由 NEXUSROUTER_LOG_DIR 或入口 -log-dir 推导。
+	LogDir string
+	// LogDailyFile 为 true 时持久化文件名为 gateway-YYYYMMDD.log（进程启动当日）；否则为 gateway.log。由 NEXUSROUTER_LOG_DAILY_FILE 解析。
+	LogDailyFile bool
 
 	// --- 管理控制台（可选）---
 	// EnableAdminConsole 为 true 时注册 /api/admin/*（仍需 JWT 密钥与账号配置完整）。未设置环境变量时默认为 true，便于零配置启动；生产若需关闭可设 NEXUSROUTER_ENABLE_ADMIN_CONSOLE=false。
@@ -62,6 +71,21 @@ type Config struct {
 	AdminRefreshExpire time.Duration
 	// AdminPasswordResetSMTP 预留：邮件重置发件配置（首版可不解析，仅占位）。
 	AdminPasswordResetSMTP string
+
+	// ChatStreamIncludeUsage 为 nil 表示未设置环境变量 NEXUSROUTER_CHAT_STREAM_INCLUDE_USAGE（默认在 ChatStreamIncludeUsageEffective 中视为启用）；
+	// 非 nil 时以指针值为准：为 true 时在流式 Chat Completions 请求体中合并 stream_options.include_usage=true。
+	ChatStreamIncludeUsage *bool
+	// FrontendBaseURL 非空且为合法 http(s) 绝对基址时，未匹配任何已注册路由的请求将 301 重定向到此前缀与请求原始 URI（含 query）的拼接，便于静态管理前端独立部署。
+	FrontendBaseURL string
+}
+
+// ChatStreamIncludeUsageEffective 返回是否在流式 Chat 请求中合并 stream_options.include_usage。
+// nil 指针或未设置环境变量时默认为 true（与 Load 装配的默认语义一致）。
+func (c *Config) ChatStreamIncludeUsageEffective() bool {
+	if c == nil || c.ChatStreamIncludeUsage == nil {
+		return true
+	}
+	return *c.ChatStreamIncludeUsage
 }
 
 // EffectiveUpstreamBases 返回非空的上游基址列表（多上游优先，否则回退单键）。
@@ -114,22 +138,30 @@ func Load() *Config {
 		}
 	}
 
+	var chatStreamIncludeUsage *bool
+	if v.IsSet("NEXUSROUTER_CHAT_STREAM_INCLUDE_USAGE") {
+		b := v.GetBool("NEXUSROUTER_CHAT_STREAM_INCLUDE_USAGE")
+		chatStreamIncludeUsage = &b
+	}
+
 	urlsCSV := strings.TrimSpace(v.GetString("NEXUSROUTER_UPSTREAM_BASE_URLS"))
 	var urls []string
 	if urlsCSV != "" {
 		urls = splitCommaNonEmpty(urlsCSV)
 	}
 
-	httpAddr := strings.TrimSpace(v.GetString("NEXUSROUTER_HTTP_LISTEN_ADDR"))
+	httpAddr := listenAddrFromEnvs(v)
 	if httpAddr == "" {
 		httpAddr = ":8080"
 	}
 
 	adminJWT := strings.TrimSpace(v.GetString("NEXUSROUTER_ADMIN_JWT_SECRET"))
+	frontendBase := normalizeFrontendBaseURL(v.GetString("NEXUSROUTER_FRONTEND_BASE_URL"))
 	cfg := &Config{
 		UpstreamBaseURL:             strings.TrimSpace(v.GetString("NEXUSROUTER_UPSTREAM_BASE_URL")),
 		UpstreamBaseURLs:            urls,
 		UpstreamTimeout:             timeout,
+		UpstreamHTTPProxy:           strings.TrimSpace(v.GetString("NEXUSROUTER_UPSTREAM_HTTP_PROXY")),
 		GatewayAPIKeys:              splitKeys(v.GetString("NEXUSROUTER_GATEWAY_API_KEYS")),
 		GatewayKeysFile:             strings.TrimSpace(v.GetString("NEXUSROUTER_GATEWAY_KEYS_FILE")),
 		AdminReloadToken:            strings.TrimSpace(v.GetString("NEXUSROUTER_ADMIN_RELOAD_TOKEN")),
@@ -138,6 +170,7 @@ func Load() *Config {
 		GatewayConfigFile:           strings.TrimSpace(v.GetString("NEXUSROUTER_GATEWAY_CONFIG_FILE")),
 		DatabaseURL:                 strings.TrimSpace(v.GetString("NEXUSROUTER_DATABASE_URL")),
 		SQLitePath:                  strings.TrimSpace(v.GetString("NEXUSROUTER_SQLITE_PATH")),
+		SQLiteBusyTimeoutMS:         v.GetInt("NEXUSROUTER_SQLITE_BUSY_TIMEOUT_MS"),
 		UploadsDir:                  strings.TrimSpace(v.GetString("NEXUSROUTER_UPLOADS_DIR")),
 		HTTPListenAddr:              httpAddr,
 		EnableAdminConsole:          adminConsole,
@@ -149,6 +182,10 @@ func Load() *Config {
 		AdminOperatorPasswordBcrypt: strings.TrimSpace(v.GetString("NEXUSROUTER_ADMIN_OPERATOR_PASSWORD_BCRYPT")),
 		AdminRefreshExpire:          adminRefreshExp,
 		AdminPasswordResetSMTP:      strings.TrimSpace(v.GetString("NEXUSROUTER_ADMIN_PASSWORD_RESET_SMTP")),
+		ChatStreamIncludeUsage:      chatStreamIncludeUsage,
+		FrontendBaseURL:             frontendBase,
+		LogDir:                      strings.TrimSpace(v.GetString("NEXUSROUTER_LOG_DIR")),
+		LogDailyFile:                v.GetBool("NEXUSROUTER_LOG_DAILY_FILE"),
 	}
 	// 未设置密钥时始终生成，避免仅因未开管理控制台导致 JWT 为空、首次引导误报 BOOTSTRAP_JWT_MISSING。
 	if cfg.AdminJWTSecret == "" {
@@ -161,6 +198,23 @@ func Load() *Config {
 		}
 	}
 	return cfg
+}
+
+// listenAddrFromEnvs 解析 HTTP 监听地址：优先 NEXUSROUTER_HTTP_LISTEN_ADDR。
+// 若为空且 PORT 非空，则规范为 Gin Engine.Run 可用形式：已含冒号（host:port 等）则原样；否则视为十进制端口并加前导冒号。
+func listenAddrFromEnvs(v *viper.Viper) string {
+	primary := strings.TrimSpace(v.GetString("NEXUSROUTER_HTTP_LISTEN_ADDR"))
+	if primary != "" {
+		return primary
+	}
+	port := strings.TrimSpace(v.GetString("PORT"))
+	if port == "" {
+		return ""
+	}
+	if strings.Contains(port, ":") {
+		return port
+	}
+	return ":" + port
 }
 
 // randomUUIDv4String 返回 RFC 4122 UUID v4 字符串，用作未配置时的 JWT HMAC 密钥（开发便捷；生产请设置 NEXUSROUTER_ADMIN_JWT_SECRET）。
@@ -209,4 +263,23 @@ func splitCommaNonEmpty(s string) []string {
 		}
 	}
 	return out
+}
+
+// normalizeFrontendBaseURL 校验并规范化外置前端基址：须为含主机的 http(s) URL；非法或空则返回空串。
+func normalizeFrontendBaseURL(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	s = strings.TrimSuffix(s, "/")
+	u, err := url.Parse(s)
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "http", "https":
+		return s
+	default:
+		return ""
+	}
 }

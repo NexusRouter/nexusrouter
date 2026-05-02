@@ -32,6 +32,34 @@ func TestInitializeApp_HealthEndpoint(t *testing.T) {
 	assert.NotEmpty(t, body["server_time"])
 	assert.NotEmpty(t, body["start_time"])
 	assert.Contains(t, body, "uptime_seconds")
+
+	rec2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest(http.MethodHead, "/health", nil)
+	app.Engine.ServeHTTP(rec2, req2)
+	require.Equal(t, http.StatusOK, rec2.Code)
+	assert.Empty(t, rec2.Body.String())
+	assert.NotEmpty(t, rec2.Header().Get("Content-Length"))
+}
+
+// 公开 GET /api/status：Wire 装配后 success/data 封装与 200。
+func TestInitializeApp_APIStatusEndpoint(t *testing.T) {
+	app, err := InitializeApp()
+	require.NoError(t, err)
+	require.NotNil(t, app)
+	require.NotNil(t, app.Engine)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/status", nil)
+	app.Engine.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.Equal(t, true, body["success"])
+	data, ok := body["data"].(map[string]any)
+	require.True(t, ok)
+	assert.NotEmpty(t, data["version"])
+	assert.NotEmpty(t, data["start_time"])
 }
 
 func completeFirstBootViaAPI(t *testing.T, appEngine http.Handler, username, password string) {
@@ -92,6 +120,24 @@ func TestInitializeApp_AdminConsoleAuth(t *testing.T) {
 	var metrics map[string]any
 	require.NoError(t, json.Unmarshal(rec4.Body.Bytes(), &metrics))
 	assert.Contains(t, metrics, "requests_total")
+}
+
+// 未匹配路由：配置外置前端基址时 301 到基址与请求 URI 拼接。
+func TestInitializeApp_NoRouteFrontendRedirect(t *testing.T) {
+	t.Setenv("NEXUSROUTER_SQLITE_PATH", filepath.Join(t.TempDir(), "fe-redirect.db"))
+	t.Setenv("NEXUSROUTER_ENABLE_ADMIN_CONSOLE", "true")
+	t.Setenv("NEXUSROUTER_ADMIN_JWT_SECRET", "unit-test-jwt-secret-min-32-chars!!")
+	t.Setenv("NEXUSROUTER_FRONTEND_BASE_URL", "https://ui.example.test")
+
+	app, err := InitializeApp()
+	require.NoError(t, err)
+	completeFirstBootViaAPI(t, app.Engine, "admin", "correct-password")
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/app/dashboard?x=1", nil)
+	app.Engine.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusMovedPermanently, rec.Code)
+	assert.Equal(t, "https://ui.example.test/app/dashboard?x=1", rec.Header().Get("Location"))
 }
 
 // 忘记密码说明接口无需登录。

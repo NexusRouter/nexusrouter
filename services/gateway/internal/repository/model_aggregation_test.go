@@ -39,7 +39,7 @@ func TestPickChatTarget_priorityAndOfficial(t *testing.T) {
 }
 
 func TestRewriteChatBodyToProvider(t *testing.T) {
-	in := []byte(`{"model":"gpt-3.5-turbo","messages":[]}`)
+	in := []byte(`{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"x"}]}`)
 	out := RewriteChatBodyToProvider(in, "upstream-real")
 	require.Contains(t, string(out), `"model":"upstream-real"`)
 }

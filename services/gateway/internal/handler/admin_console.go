@@ -12,6 +12,7 @@ import (
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/keystore"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/metrics"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/runtime"
+	gzipmw "github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -32,13 +33,15 @@ func RegisterAdminConsole(
 		return
 	}
 
-	pub := r.Group("/api/admin/v1")
+	// 管理端 JSON 响应在客户端接受 gzip 时可压缩（与 Chat 代理路径分离，避免影响 SSE）。
+	admin := r.Group("/api/admin/v1")
+	admin.Use(gzipmw.Gzip(gzipmw.DefaultCompression))
 	{
-		pub.POST("/auth/login", adminLogin(cfg, auth, col, log))
-		pub.GET("/auth/password-reset-info", adminPasswordResetInfo(cfg))
+		admin.POST("/auth/login", adminLogin(cfg, auth, col, log))
+		admin.GET("/auth/password-reset-info", adminPasswordResetInfo(cfg))
 	}
 
-	g := r.Group("/api/admin/v1", adminJWTMiddleware(auth))
+	g := admin.Group("", adminJWTMiddleware(auth))
 	gw := g.Group("", adminOperatorWriteGuard())
 	{
 		g.GET("/auth/me", adminAuthMe())

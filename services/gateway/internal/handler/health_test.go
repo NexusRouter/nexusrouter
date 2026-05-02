@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -35,4 +36,25 @@ func TestHealth_JSONFieldsAndRFC3339(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, body, "uptime_seconds")
 	require.IsType(t, float64(0), body["uptime_seconds"])
+}
+
+func TestHealth_HEAD_OK_NoBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	h := Health()
+	r.GET("/health", h)
+	r.HEAD("/health", h)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodHead, "/health", nil)
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Empty(t, rec.Body.String())
+	require.Equal(t, "application/json; charset=utf-8", rec.Header().Get("Content-Type"))
+	cl := rec.Header().Get("Content-Length")
+	require.NotEmpty(t, cl)
+	n, err := strconv.Atoi(cl)
+	require.NoError(t, err)
+	require.Positive(t, n)
 }
