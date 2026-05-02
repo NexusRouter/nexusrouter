@@ -20,8 +20,8 @@ func TestSpecYAMLBytes_OpenAPI3(t *testing.T) {
 	if err := yaml.Unmarshal(raw, &root); err != nil {
 		t.Fatalf("解析嵌入 YAML: %v", err)
 	}
-	ver, _ := root["openapi"].(string)
-	if ver == "" || !strings.HasPrefix(ver, "3.0.") {
-		t.Fatalf("openapi 版本应为 3.0.x 前缀，得到 %q", ver)
+	ver, ok := root["openapi"].(string)
+	if !ok || ver == "" || !strings.HasPrefix(ver, "3.0.") {
+		t.Fatalf("openapi 版本应为 3.0.x 前缀，得到 %q (ok=%v)", ver, ok)
 	}
 }
