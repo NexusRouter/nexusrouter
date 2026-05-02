@@ -6,7 +6,7 @@
 
 ## 2. 网关运行时
 
-- [x] 2.1 实现 `InstancePicker`：按 `priority` ASC、`is_official`、`weight`、各表 `status=1` 及可选健康选择实例
+- [x] 2.1 实现实例选择：按 `priority` ASC、`is_official`、`weight`、各表 `status=1` 选择实例（不含上游探针；与 2.4 范围外决策一致）
 - [x] 2.2 在 **POST `/v1/chat/completions`** 链中：选中实例后向 **`model_upstream.base_url`** 转发，使用 **`api_key`**；将 body 中 **`model`** 改写为 **`provider_model_code`**
 - [x] 2.3 更新 **GET `/v1/models`**：仅聚合满足启用链的逻辑模型，`id` = **`model_code`**
 - [x] 2.4 （可选）对 `model_upstream` 做探针，临时剔除不可达实例 — **范围外，不实现**（已决策；规范见 `openspec/specs/model-library/spec.md`「上游探针与临时剔除」）
