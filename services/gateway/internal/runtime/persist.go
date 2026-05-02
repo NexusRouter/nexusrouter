@@ -42,14 +42,14 @@ func (s *Store) PersistCurrent() error {
 
 func marshalFileYAML(s *Snapshot) ([]byte, error) {
 	f := fileYAML{
-		Upstreams:        append([]Upstream(nil), s.Upstreams...),
-		Routing:          s.Routing,
-		CORS:             s.CORS,
-		RateLimit:        s.RateLimit,
-		RateLimitRules:   append([]RateLimitRule(nil), s.RateLimitRules...),
-		IPAccess:         IPAccess{Mode: s.IPAccess.Mode, CIDRs: append([]string(nil), s.IPAccess.CIDRs...)},
-		ProxyAccessLog:   s.ProxyAccessLog,
-		AdminAlerts:      s.AdminAlerts,
+		Upstreams:      append([]Upstream(nil), s.Upstreams...),
+		Routing:        s.Routing,
+		CORS:           s.CORS,
+		RateLimit:      s.RateLimit,
+		RateLimitRules: append([]RateLimitRule(nil), s.RateLimitRules...),
+		IPAccess:       IPAccess{Mode: s.IPAccess.Mode, CIDRs: append([]string(nil), s.IPAccess.CIDRs...)},
+		ProxyAccessLog: s.ProxyAccessLog,
+		AdminAlerts:    s.AdminAlerts,
 	}
 	return yaml.Marshal(&f)
 }

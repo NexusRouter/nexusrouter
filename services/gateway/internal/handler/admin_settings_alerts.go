@@ -99,9 +99,9 @@ func adminSystemSettingsPut(rt *runtime.Store) gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{
-			"status":            "ok",
+			"status":           "ok",
 			"restart_required": false,
-			"note":              "监听端口与上游超时须改环境变量并重启进程后生效",
+			"note":             "监听端口与上游超时须改环境变量并重启进程后生效",
 		})
 	}
 }
