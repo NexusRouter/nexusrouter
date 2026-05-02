@@ -20,8 +20,17 @@ func TestWithID_EmptyNoOp(t *testing.T) {
 	assert.Equal(t, "", FromContext(got))
 }
 
-func TestFromContext_Nil(t *testing.T) {
-	assert.Equal(t, "", FromContext(nil))
+func TestStrict_nilInterfaceContextPanics(t *testing.T) {
+	var nilCtx context.Context
+	assert.PanicsWithValue(t, "requestid: nil Context", func() {
+		FromContext(nilCtx)
+	})
+	assert.PanicsWithValue(t, "requestid: nil Context", func() {
+		_ = WithID(nilCtx, "rid")
+	})
+	assert.PanicsWithValue(t, "requestid: nil Context", func() {
+		_ = WithID(nilCtx, "")
+	})
 }
 
 func TestChildContext_Inherits(t *testing.T) {
