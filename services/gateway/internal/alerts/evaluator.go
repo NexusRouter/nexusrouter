@@ -97,7 +97,10 @@ func evalOnce(rt *runtime.Store, col *metrics.Collector, log *zap.Logger) {
 	}
 	sum := col.SummaryJSON()
 	total := numAsUint64(sum["requests_total"])
-	sr, _ := sum["success_rate"].(float64)
+	sr, ok := sum["success_rate"].(float64)
+	if !ok {
+		sr = 0
+	}
 	if total < minTotal {
 		atomic.StoreUint32(&consecutive, 0)
 		setStatus(Status{Level: "ok", Reasons: nil, Enabled: true})

@@ -78,7 +78,8 @@ func TestInitializeApp_AdminConsoleAuth(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec3.Code)
 	var login map[string]any
 	require.NoError(t, json.Unmarshal(rec3.Body.Bytes(), &login))
-	tok, _ := login["access_token"].(string)
+	tok, tokOK := login["access_token"].(string)
+	require.True(t, tokOK, "access_token 类型应为 string")
 	require.NotEmpty(t, tok)
 
 	rec4 := httptest.NewRecorder()
