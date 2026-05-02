@@ -129,7 +129,11 @@ func (s *Store) Snapshot() *Snapshot {
 	if v == nil {
 		return &Snapshot{}
 	}
-	return v.(*Snapshot)
+	snap, ok := v.(*Snapshot)
+	if !ok {
+		return &Snapshot{}
+	}
+	return snap
 }
 
 // Path 返回配置文件路径（可能为空）。

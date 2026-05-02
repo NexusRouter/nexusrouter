@@ -10,6 +10,7 @@ NexusRouter 是开源 LLM API 网关：以 **OpenAI 兼容** API 统一接入多
 |------|------|------|
 | 网关（后端） | Go **1.24.x**，Gin，Wire，Zap，GORM / Postgres / Redis 等（见 `go.mod`） | `services/gateway/` |
 | 控制台（前端） | Node **≥22**，**pnpm 9**，Vite 6，React 19，TypeScript 5.7，Tailwind v4，antd 6 | `web/dashboard/` |
+| 仓库根工具链 | **pnpm 9**（仅 Husky 等极少量 devDependency，与控制台包管理器一致） | `package.json`、`pnpm-lock.yaml`（根目录） |
 | 规范驱动 | [OpenSpec](https://github.com/fission-ai/openspec) | `openspec/`（`specs/` 能力规范，`changes/` 变更提案） |
 | CI | GitHub Actions | `.github/workflows/` |
 
@@ -23,6 +24,12 @@ web/dashboard/        # React 控制台（pnpm）
 ```
 
 ## 本地开发
+
+**仓库根（Git 提交前钩子）**
+
+```bash
+pnpm install   # 安装 Husky；与 web/dashboard 使用同一 pnpm 9.x（建议 corepack）
+```
 
 **网关**
 
