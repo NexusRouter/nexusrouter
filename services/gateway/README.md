@@ -14,6 +14,7 @@ NexusRouter 网关服务，模块路径：`github.com/NexusRouter/nexusrouter/se
 
 ```bash
 cd services/gateway
+make docs        # 首次克隆或修改 swag 注释后需要：生成 internal/openapi/openapi.yaml 供 go:embed
 go run ./cmd/api
 ```
 
@@ -191,16 +192,16 @@ OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api
 
 ### 文档单一事实来源（代码优先）
 
-- **只维护 Go 源码中的 swag 注释**（`cmd/api/main.go`、`internal/handler/swagger_*.go` 等）。
+- **只维护 Go 源码中的 swag 注释**（`cmd/api/main.go`、`internal/handler/swagger_*.go` 等）；`docs/docs_test.go` 为手写保留，**`swag init` 不会删除**，用于 `go test -cover` 与生成物冒烟。
 - `make docs` 依次：`swag init` → 生成 `docs/`（Swagger 2）→ `swagger2openapi` 生成 `**internal/openapi/openapi.yaml`（OAS3）**。
-- 运行时将 **OAS3 文件嵌入二进制**（`go:embed`），`/openapi.yaml` 与 `/openapi.json` 均来自该生成物；**请勿手改** `internal/openapi/openapi.yaml`。
+- 运行时将 **OAS3 文件嵌入二进制**（`go:embed`），`/openapi.yaml` 与 `/openapi.json` 均来自该生成物；**请勿手改** `internal/openapi/openapi.yaml`（该文件由 `make docs` 产出，**已加入 .gitignore**，不入库）。
 
 ```bash
 cd services/gateway
 make docs
 ```
 
-CI 会校验 `**docs/****` 与 `**internal/openapi/openapi.yaml**` 与仓库一致（`git diff --exit-code`）。
+克隆或改注释后：**先** `make docs` **再** `go test` / `go build`（或使用 **`make test`**、**`make build-api`**，二者均依赖 `docs`）。CI 在测试与编译前会执行 `make docs`，且仅对 **`docs/`** 做 `git diff --exit-code` 防漂移（`openapi.yaml` 不纳入版本对比）。
 
 ### 重新生成 Wire
 

@@ -40,14 +40,14 @@ jobs:
       - name: Go vet
         run: go vet ./...
 
-      - name: Verify Swag docs drift
-        run: make docs && git diff --exit-code docs/ internal/openapi/openapi.yaml
+      - name: Verify Swag docs drift (docs/ only; openapi.yaml is generated, not tracked)
+        run: make docs && git diff --exit-code docs/
 
       - name: Go test
-        run: go test ./... -count=1 -cover
+        run: make test
 
       - name: Go build API
-        run: go build -o /tmp/nexusrouter-gateway ./cmd/api
+        run: make build-api
 
   dashboard-frontend:
     name: Dashboard (pnpm)

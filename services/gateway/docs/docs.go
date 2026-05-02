@@ -15,6 +15,76 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/bootstrap/v1/complete": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "完成首次初始化",
+                "parameters": [
+                    {
+                        "description": "初始化载荷",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.firstBootCompleteBody"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/bootstrap/v1/reset": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "重置首次初始化（超级管理员）",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/bootstrap/v1/status": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "首次初始化状态",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/health": {
             "get": {
                 "description": "返回服务状态、版本号与当前时间（UTC RFC3339Nano），无需鉴权。",
@@ -320,6 +390,20 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "active_upstream_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.firstBootCompleteBody": {
+            "type": "object",
+            "properties": {
+                "admin_password": {
+                    "type": "string"
+                },
+                "admin_username": {
+                    "type": "string"
+                },
+                "site_display_name": {
                     "type": "string"
                 }
             }
