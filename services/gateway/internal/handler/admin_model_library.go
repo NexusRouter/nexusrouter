@@ -51,6 +51,7 @@ func registerModelLibraryRoutes(g, gw *gin.RouterGroup, cfg *config.Config, rt *
 	gw.DELETE("/model-library/instances/:id", adminDeleteInstance(db))
 	// sync
 	gw.POST("/model-library/sync", adminSyncUpstreamModelsDB(cfg, log, db))
+	gw.POST("/model-library/vendor-logo", adminUploadVendorLogo(cfg, log))
 }
 
 func parseID64(c *gin.Context, key string) (int64, bool) {

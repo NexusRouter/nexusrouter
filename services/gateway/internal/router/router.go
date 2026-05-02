@@ -2,6 +2,8 @@ package router
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/adminauth"
@@ -40,6 +42,13 @@ func Register(r *gin.Engine, d Deps) {
 	handler.RegisterFirstBootRoutes(r, cfg, d.DB, adm, log)
 
 	r.GET("/health", handler.Health())
+
+	uploadRoot := cfg.EffectiveUploadsDir()
+	if err := os.MkdirAll(filepath.Join(uploadRoot, "vendor-logos"), 0755); err != nil {
+		log.Warn("创建上传目录失败", zap.String("path", uploadRoot), zap.Error(err))
+	} else {
+		r.Static("/uploads", uploadRoot)
+	}
 
 	if strings.TrimSpace(cfg.AdminReloadToken) != "" {
 		if d.KeyStore != nil {

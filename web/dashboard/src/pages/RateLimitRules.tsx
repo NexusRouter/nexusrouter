@@ -5,6 +5,7 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../services/api'
 import { isOperatorRole, useAuthStore } from '../stores/authStore'
+import { confirmDestructive } from '../utils/confirmDestructive'
 import { isValidPathPrefix } from '../utils/gatewayValidators'
 
 type Rule = {
@@ -26,7 +27,7 @@ type Props = { embedded?: boolean }
 
 /** 限流规则表编辑与整体保存。 */
 export default function RateLimitRulesPage({ embedded = false }: Props) {
-  const { message } = App.useApp()
+  const { message, modal } = App.useApp()
   const { t } = useTranslation()
   const readOnly = isOperatorRole(useAuthStore((s) => s.role))
   const qc = useQueryClient()
@@ -245,7 +246,22 @@ export default function RateLimitRulesPage({ embedded = false }: Props) {
                       key: 'del',
                       width: 64,
                       render: (_: unknown, r: FieldRow) => (
-                        <Button type="link" danger onClick={() => remove(r.name)}>
+                        <Button
+                          type="link"
+                          danger
+                          onClick={() => {
+                            const prefix = String(
+                              form.getFieldValue(['rules', r.name, 'match_path_prefix']) ?? '',
+                            ).trim()
+                            confirmDestructive(modal, t, {
+                              title: t('pages.rateLimits.removeRuleTitle'),
+                              resourceName: prefix || t('pages.rateLimits.unnamedRule'),
+                              onOk: async () => {
+                                remove(r.name)
+                              },
+                            })
+                          }}
+                        >
                           {t('pages.rateLimits.removeRow')}
                         </Button>
                       ),

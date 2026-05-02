@@ -15,7 +15,11 @@ import type { TFunction } from 'i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
+import { PageEmpty } from '../components/PageEmpty'
+import { PageError } from '../components/PageError'
 import { api } from '../services/api'
+import { confirmDestructive } from '../utils/confirmDestructive'
 import { isOperatorRole, useAuthStore } from '../stores/authStore'
 
 type Upstream = { id: string; base_url: string; weight: number }
@@ -116,6 +120,13 @@ export default function UpstreamsPage() {
         <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">NEXUSROUTER_GATEWAY_CONFIG_FILE</code>
         {t('pages.upstreams.introEnd')}
       </Typography.Paragraph>
+      {snap.isError ? (
+        <PageError
+          title={t('common.pageError.title')}
+          retryLabel={t('common.pageError.retry')}
+          onRetry={() => snap.refetch()}
+        />
+      ) : null}
       {data && (
         <div className="flex flex-wrap gap-2">
           <Tag>
@@ -140,6 +151,18 @@ export default function UpstreamsPage() {
         dataSource={data?.upstreams ?? []}
         columns={columns}
         pagination={false}
+        locale={{
+          emptyText: (
+            <PageEmpty
+              description={t('common.pageEmpty.upstreamsHint')}
+              extra={
+                <Link className="text-indigo-600 dark:text-indigo-400" to="/model-library">
+                  {t('consoleTerms.guideModelLibrary')}
+                </Link>
+              }
+            />
+          ),
+        }}
       />
       {!readOnly ? (
         <Space wrap>
@@ -226,7 +249,22 @@ export default function UpstreamsPage() {
                     >
                       <InputNumber min={0} />
                     </Form.Item>
-                    <Button type="link" danger onClick={() => remove(f.name)}>
+                    <Button
+                      type="link"
+                      danger
+                      onClick={() => {
+                        const ups = form.getFieldValue('upstreams') as Upstream[] | undefined
+                        const row = ups?.[f.name]
+                        const id = String(row?.id ?? '').trim() || `#${f.name + 1}`
+                        confirmDestructive(modal, t, {
+                          title: t('pages.upstreams.removeRowConfirmTitle'),
+                          resourceName: id,
+                          onOk: async () => {
+                            remove(f.name)
+                          },
+                        })
+                      }}
+                    >
                       {t('pages.upstreams.removeRow')}
                     </Button>
                   </Space>

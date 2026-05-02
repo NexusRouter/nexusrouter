@@ -1,8 +1,22 @@
-import { App, Button, DatePicker, Form, Input, InputNumber, Select, Space, Table, Typography } from 'antd'
+import {
+  Alert,
+  App,
+  Button,
+  DatePicker,
+  Form,
+  Input,
+  InputNumber,
+  Select,
+  Space,
+  Table,
+  Typography,
+} from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import type { Dayjs } from 'dayjs'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
+import { PageError } from '../components/PageError'
 import { api } from '../services/api'
 
 type LogItem = Record<string, unknown>
@@ -260,10 +274,22 @@ export default function AccessLogsPage() {
         </Space>
       </Form>
       {q.isError ? (
-        <Typography.Text type="danger">{t('pages.accessLogs.queryFail')}</Typography.Text>
+        <PageError
+          title={t('pages.accessLogs.queryFail')}
+          retryLabel={t('common.pageError.retry')}
+          onRetry={() => q.refetch()}
+          extra={
+            <Link className="text-indigo-600 dark:text-indigo-400" to="/settings">
+              {t('consoleTerms.navSettings')}
+            </Link>
+          }
+        />
       ) : null}
       {q.data?.proxy_log_enabled === false ? (
         <Typography.Text type="secondary">{t('pages.accessLogs.logDisabled')}</Typography.Text>
+      ) : null}
+      {filters && !q.isFetching && !q.isError && q.data && (q.data.items?.length ?? 0) === 0 ? (
+        <Alert type="info" showIcon className="mb-2" message={t('pages.accessLogs.emptyAfterQuery')} />
       ) : null}
       <Table
         size="small"

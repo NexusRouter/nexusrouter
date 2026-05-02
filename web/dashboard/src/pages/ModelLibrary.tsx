@@ -21,20 +21,39 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SelectWithCreate } from '../components/SelectWithCreate'
 import { TermHint } from '../components/TermHint'
+import { VendorLogoField } from '../components/VendorLogoField'
 import { api } from '../services/api'
 import { isOperatorRole, useAuthStore } from '../stores/authStore'
+import { confirmDestructive } from '../utils/confirmDestructive'
+import { resolveVendorLogoUrl } from '../utils/vendorLogoUrl'
 import { ModelLibraryWizard } from './ModelLibraryWizard'
 
-/** 与 one-api / Simple Icons 风格一致的常见厂商图标（可被子段 logo 覆盖） */
+/** 本地 public/vendor-logos/<vendor_code>.svg（与网关预置厂商一致；DB logo 可覆盖） */
 const VENDOR_LOGO_FALLBACK: Record<string, string> = {
-  openai: 'https://cdn.simpleicons.org/openai/412991',
-  anthropic: 'https://cdn.simpleicons.org/anthropic/D4A27F',
-  zhipu: 'https://cdn.simpleicons.org/baidu/2932E1',
-  google: 'https://cdn.simpleicons.org/google/4285F4',
-  azure: 'https://cdn.simpleicons.org/microsoftazure/0078D4',
-  deepseek: 'https://cdn.simpleicons.org/deepseek/4D6BFE',
-  moonshot: 'https://cdn.simpleicons.org/kimi/000000',
-  oneapi: 'https://cdn.simpleicons.org/openapiinitiative/6BA539',
+  openai: '/vendor-logos/openai.svg',
+  anthropic: '/vendor-logos/anthropic.svg',
+  google_gemini: '/vendor-logos/google_gemini.svg',
+  azure_openai: '/vendor-logos/azure_openai.svg',
+  baidu: '/vendor-logos/baidu.svg',
+  zhipu: '/vendor-logos/zhipu.svg',
+  aliyun_dashscope: '/vendor-logos/aliyun_dashscope.svg',
+  moonshot: '/vendor-logos/moonshot.svg',
+  baichuan: '/vendor-logos/baichuan.svg',
+  minimax: '/vendor-logos/minimax.svg',
+  mistral: '/vendor-logos/mistral.svg',
+  groq: '/vendor-logos/groq.svg',
+  deepseek: '/vendor-logos/deepseek.svg',
+  cohere: '/vendor-logos/cohere.svg',
+  xai: '/vendor-logos/xai.svg',
+  together: '/vendor-logos/together.svg',
+  cloudflare: '/vendor-logos/cloudflare.svg',
+  doubao: '/vendor-logos/doubao.svg',
+  novita: '/vendor-logos/novita.svg',
+  replicate: '/vendor-logos/replicate.svg',
+  hunyuan: '/vendor-logos/hunyuan.svg',
+  google: '/vendor-logos/google_gemini.svg',
+  azure: '/vendor-logos/azure_openai.svg',
+  oneapi: '/vendor-logos/openai.svg',
 }
 
 type Vendor = {
@@ -81,7 +100,10 @@ type Instance = {
 }
 
 function vendorAvatar(v: Pick<Vendor, 'logo' | 'vendor_code'>) {
-  const src = (v.logo && String(v.logo).trim()) || VENDOR_LOGO_FALLBACK[v.vendor_code?.toLowerCase?.() ?? ''] || undefined
+  const code = v.vendor_code?.toLowerCase?.() ?? ''
+  const src =
+    resolveVendorLogoUrl(v.logo ? String(v.logo) : '') ||
+    resolveVendorLogoUrl(VENDOR_LOGO_FALLBACK[code])
   return <Avatar src={src} size={28} style={{ flexShrink: 0 }} />
 }
 
@@ -91,7 +113,7 @@ function truncateUrl(s: string, max = 48) {
 }
 
 export default function ModelLibraryPage() {
-  const { message } = App.useApp()
+  const { message, modal: antdModal } = App.useApp()
   const { t } = useTranslation()
   const readOnly = isOperatorRole(useAuthStore((s) => s.role))
   const qc = useQueryClient()
@@ -243,14 +265,25 @@ export default function ModelLibraryPage() {
               <Button type="link" size="small" onClick={() => setModal({ kind: 'vendor-edit', row: r })}>
                 {t('common.edit')}
               </Button>
-              <Button type="link" size="small" danger onClick={() => delVendor.mutate(r.id)}>
+              <Button
+                type="link"
+                size="small"
+                danger
+                onClick={() =>
+                  confirmDestructive(antdModal, t, {
+                    title: t('pages.modelLibrary.deleteVendorTitle'),
+                    resourceName: `${r.vendor_name} (${r.vendor_code})`,
+                    onOk: () => delVendor.mutateAsync(r.id),
+                  })
+                }
+              >
                 {t('common.delete')}
               </Button>
             </Space>
           ),
       },
     ],
-    [t, readOnly, delVendor],
+    [t, readOnly, delVendor, antdModal],
   )
 
   const baseCols = useMemo(
@@ -283,14 +316,25 @@ export default function ModelLibraryPage() {
               <Button type="link" size="small" onClick={() => setModal({ kind: 'base-edit', row: r })}>
                 {t('common.edit')}
               </Button>
-              <Button type="link" size="small" danger onClick={() => delBase.mutate(r.id)}>
+              <Button
+                type="link"
+                size="small"
+                danger
+                onClick={() =>
+                  confirmDestructive(antdModal, t, {
+                    title: t('pages.modelLibrary.deleteBaseTitle'),
+                    resourceName: `${r.model_name} (${r.model_code})`,
+                    onOk: () => delBase.mutateAsync(r.id),
+                  })
+                }
+              >
                 {t('common.delete')}
               </Button>
             </Space>
           ),
       },
     ],
-    [t, readOnly, delBase],
+    [t, readOnly, delBase, antdModal],
   )
 
   const upCols = useMemo(
@@ -331,14 +375,25 @@ export default function ModelLibraryPage() {
               <Button type="link" size="small" onClick={() => setModal({ kind: 'upstream-edit', row: r })}>
                 {t('common.edit')}
               </Button>
-              <Button type="link" size="small" danger onClick={() => delUp.mutate(r.id)}>
+              <Button
+                type="link"
+                size="small"
+                danger
+                onClick={() =>
+                  confirmDestructive(antdModal, t, {
+                    title: t('pages.modelLibrary.deleteUpstreamTitle'),
+                    resourceName: `${r.upstream_name} (#${r.id})`,
+                    onOk: () => delUp.mutateAsync(r.id),
+                  })
+                }
+              >
                 {t('common.delete')}
               </Button>
             </Space>
           ),
       },
     ],
-    [t, readOnly, delUp, vendorById],
+    [t, readOnly, delUp, vendorById, antdModal],
   )
 
   const instColsMain = useMemo(
@@ -435,14 +490,25 @@ export default function ModelLibraryPage() {
               <Button type="link" size="small" onClick={() => setModal({ kind: 'instance-edit', row: r })}>
                 {t('common.edit')}
               </Button>
-              <Button type="link" size="small" danger onClick={() => delInst.mutate(r.id)}>
+              <Button
+                type="link"
+                size="small"
+                danger
+                onClick={() =>
+                  confirmDestructive(antdModal, t, {
+                    title: t('pages.modelLibrary.deleteInstanceTitle'),
+                    resourceName: `${r.instance_name} (#${r.id})`,
+                    onOk: () => delInst.mutateAsync(r.id),
+                  })
+                }
+              >
                 {t('common.delete')}
               </Button>
             </Space>
           ),
       },
     ],
-    [t, readOnly, delInst, baseById, vendorById, upById],
+    [t, readOnly, delInst, baseById, vendorById, upById, antdModal],
   )
 
   const instCols = useMemo(
@@ -471,14 +537,25 @@ export default function ModelLibraryPage() {
               <Button type="link" size="small" onClick={() => setModal({ kind: 'instance-edit', row: r })}>
                 {t('common.edit')}
               </Button>
-              <Button type="link" size="small" danger onClick={() => delInst.mutate(r.id)}>
+              <Button
+                type="link"
+                size="small"
+                danger
+                onClick={() =>
+                  confirmDestructive(antdModal, t, {
+                    title: t('pages.modelLibrary.deleteInstanceTitle'),
+                    resourceName: `${r.instance_name} (#${r.id})`,
+                    onOk: () => delInst.mutateAsync(r.id),
+                  })
+                }
+              >
                 {t('common.delete')}
               </Button>
             </Space>
           ),
       },
     ],
-    [t, readOnly, delInst],
+    [t, readOnly, delInst, antdModal],
   )
 
   const emptyMain = useMemo(
@@ -847,9 +924,7 @@ function NestedQuickCreateModal({
             <Form.Item name="vendor_code" label={t('pages.modelLibrary.vendorCode')} rules={[{ required: true }]}>
               <Input />
             </Form.Item>
-            <Form.Item name="logo" label={t('pages.modelLibrary.logoUrl')}>
-              <Input placeholder="https://..." />
-            </Form.Item>
+            <VendorLogoField disabled={readOnly} />
             <Form.Item name="status" label={t('pages.modelLibrary.status')} initialValue={1}>
               <Select
                 options={[
@@ -1060,9 +1135,7 @@ function EditModal({
               <Form.Item name="vendor_code" label={t('pages.modelLibrary.vendorCode')} rules={[{ required: true }]}>
                 <Input />
               </Form.Item>
-              <Form.Item name="logo" label={t('pages.modelLibrary.logoUrl')}>
-                <Input placeholder="https://..." />
-              </Form.Item>
+              <VendorLogoField disabled={readOnly} />
               <Form.Item name="status" label={t('pages.modelLibrary.status')} initialValue={1}>
                 <Select
                   options={[

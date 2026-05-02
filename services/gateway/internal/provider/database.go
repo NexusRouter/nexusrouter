@@ -23,6 +23,9 @@ func ProvideDB(cfg *config.Config, log *zap.Logger) (*gorm.DB, error) {
 	if err := repository.BootstrapFromConfig(cfg, db, log); err != nil {
 		return nil, err
 	}
+	if err := repository.SeedOfficialVendors(db, log); err != nil {
+		return nil, err
+	}
 	if err := keystore.BootstrapKeysIfEmpty(cfg, db, log); err != nil {
 		return nil, err
 	}

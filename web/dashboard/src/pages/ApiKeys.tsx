@@ -5,6 +5,7 @@ import {
   Space,
   Switch,
   Table,
+  Tooltip,
   Typography,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
@@ -12,7 +13,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { PageEmpty } from '../components/PageEmpty'
+import { PageError } from '../components/PageError'
 import { api } from '../services/api'
+import { confirmDestructive } from '../utils/confirmDestructive'
 import { isOperatorRole, useAuthStore } from '../stores/authStore'
 
 type Row = {
@@ -109,13 +113,17 @@ export default function ApiKeysPage() {
         dataIndex: 'disabled',
         key: 'dis',
         render: (d: boolean, r) => (
-          <Switch
-            checked={!d}
-            disabled={readOnly}
-            onChange={(on) =>
-              patchMut.mutate({ id: r.id, disabled: !on })
-            }
-          />
+          <Tooltip title={readOnly ? t('errors.forbidden') : undefined}>
+            <span className="inline-flex">
+              <Switch
+                checked={!d}
+                disabled={readOnly}
+                onChange={(on) =>
+                  patchMut.mutate({ id: r.id, disabled: !on })
+                }
+              />
+            </span>
+          </Tooltip>
         ),
       },
       {
@@ -142,9 +150,9 @@ export default function ApiKeysPage() {
               danger
               size="small"
               onClick={() => {
-                modal.confirm({
+                confirmDestructive(modal, t, {
                   title: t('pages.apiKeys.deleteTitle'),
-                  content: t('pages.apiKeys.deleteContent', { id: r.id }),
+                  resourceName: r.id,
                   onOk: () => delMut.mutateAsync(r.id),
                 })
               }}
@@ -167,6 +175,13 @@ export default function ApiKeysPage() {
         <code className="rounded bg-slate-100 px-1">NEXUSROUTER_GATEWAY_KEYS_FILE</code>
         {t('pages.apiKeys.introAfter')}
       </Typography.Paragraph>
+      {list.isError ? (
+        <PageError
+          title={t('common.pageError.title')}
+          retryLabel={t('common.pageError.retry')}
+          onRetry={() => list.refetch()}
+        />
+      ) : null}
       {!readOnly ? (
         <Space wrap className="mb-2">
           <Button type="primary" onClick={() => createMut.mutate()} loading={createMut.isPending}>
@@ -188,11 +203,13 @@ export default function ApiKeysPage() {
             danger
             disabled={selected.length === 0}
             onClick={() => {
-              modal.confirm({
+              confirmDestructive(modal, t, {
                 title: t('pages.apiKeys.batchDelete'),
-                content: t('pages.apiKeys.batchDeleteContent'),
+                resourceName: t('pages.apiKeys.batchDeleteSummary', {
+                  count: selected.length,
+                }),
                 onOk: () =>
-                  batchDelete.mutate(selected.map(String) as string[]),
+                  batchDelete.mutateAsync(selected.map(String) as string[]),
               })
             }}
           >
@@ -205,6 +222,11 @@ export default function ApiKeysPage() {
         loading={list.isLoading}
         dataSource={list.data ?? []}
         columns={columns}
+        locale={{
+          emptyText: (
+            <PageEmpty description={t('common.pageEmpty.apiKeysHint')} />
+          ),
+        }}
         rowSelection={
           readOnly
             ? undefined

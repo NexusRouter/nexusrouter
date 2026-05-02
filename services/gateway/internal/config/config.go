@@ -36,6 +36,8 @@ type Config struct {
 	DatabaseURL string
 	// SQLitePath SQLite 数据库文件路径；DatabaseURL 为空时生效，默认 gateway.db。
 	SQLitePath string
+	// UploadsDir 上传文件根目录（厂商图标等）；空则默认 services/gateway/data/uploads（相对模块根）。可设 NEXUSROUTER_UPLOADS_DIR。
+	UploadsDir string
 	// HTTPListenAddr Gin 监听地址，如 `:8080`；默认 `:8080`。
 	HTTPListenAddr string
 
@@ -136,6 +138,7 @@ func Load() *Config {
 		GatewayConfigFile:           strings.TrimSpace(v.GetString("NEXUSROUTER_GATEWAY_CONFIG_FILE")),
 		DatabaseURL:                 strings.TrimSpace(v.GetString("NEXUSROUTER_DATABASE_URL")),
 		SQLitePath:                  strings.TrimSpace(v.GetString("NEXUSROUTER_SQLITE_PATH")),
+		UploadsDir:                  strings.TrimSpace(v.GetString("NEXUSROUTER_UPLOADS_DIR")),
 		HTTPListenAddr:              httpAddr,
 		EnableAdminConsole:          adminConsole,
 		AdminJWTSecret:              adminJWT,
