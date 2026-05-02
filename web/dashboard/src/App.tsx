@@ -47,13 +47,12 @@ function RequireAuth() {
 /** 根据网关全局初始化状态重定向：未完成则仅允许 /setup；完成后禁止访问 /setup。 */
 function BootstrapShell() {
   const loc = useLocation()
-  const [loading, setLoading] = useState(true)
-  const [initialized, setInitialized] = useState(true)
-  /** 路由变化后、新一轮 bootstrap 拉取完成前为 true，避免沿用旧的 initialized 误判把 /login 打回 /setup。 */
-  const [refetching, setRefetching] = useState(false)
+  /** 当前路径下是否已拿到 definitive 的 bootstrap 结论；路由一变先置 false，避免沿用旧路径的 initialized 误判或短暂渲染 /setup。 */
+  const [ready, setReady] = useState(false)
+  const [initialized, setInitialized] = useState(false)
 
   useLayoutEffect(() => {
-    setRefetching(true)
+    setReady(false)
   }, [loc.pathname])
 
   useEffect(() => {
@@ -72,8 +71,7 @@ function BootstrapShell() {
         }
       } finally {
         if (!cancelled) {
-          setLoading(false)
-          setRefetching(false)
+          setReady(true)
         }
       }
     })()
@@ -82,16 +80,12 @@ function BootstrapShell() {
     }
   }, [loc.pathname])
 
-  if (loading) {
+  if (!ready) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
         <Spin size="large" />
       </div>
     )
-  }
-
-  if (refetching) {
-    return <Outlet />
   }
 
   if (!initialized && loc.pathname !== '/setup') {

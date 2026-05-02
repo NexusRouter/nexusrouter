@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import PublicPageShell from '../components/PublicPageShell'
 import { completeBootstrap } from '../services/bootstrap'
 
-/** 首次部署向导：创建超级管理员并写入站点显示名。 */
+/** 首次部署向导：创建超级管理员并写入站点显示名。（仅在未初始化时由 BootstrapShell 挂载本页。） */
 export default function SetupPage() {
   const { message } = App.useApp()
   const { t } = useTranslation()
