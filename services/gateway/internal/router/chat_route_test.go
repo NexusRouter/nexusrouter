@@ -17,7 +17,7 @@ import (
 func TestRegister_ChatCompletions_MethodNotAllowed(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	e := gin.New()
-	cfg := &config.Config{EnableSwaggerUI: false, GatewayAPIKeys: []string{"k"}}
+	cfg := &config.Config{GatewayAPIKeys: []string{"k"}}
 	rt, err := runtime.NewStore(cfg, nil)
 	require.NoError(t, err)
 	Register(e, Deps{

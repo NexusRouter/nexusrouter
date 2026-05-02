@@ -14,7 +14,7 @@ import (
 
 func rateSkipPath(path string) bool {
 	switch {
-	case path == "/health", strings.HasPrefix(path, "/openapi"), strings.HasPrefix(path, "/swagger"):
+	case path == "/health":
 		return true
 	case strings.HasPrefix(path, "/internal"):
 		return true

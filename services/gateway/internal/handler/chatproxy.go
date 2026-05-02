@@ -2,10 +2,14 @@ package handler
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/accesslog"
@@ -43,11 +47,27 @@ func (w *captureWriter) Write(b []byte) (int, error) {
 	return w.ResponseWriter.Write(b)
 }
 
-// ChatProxy 将 POST /v1/chat/completions 反向代理至运行时选中的上游。
-// 引擎级中间件顺序见 provider：CORS → RequestID → Recovery → ErrorJSON → IP 限流 →（本链）鉴权 → Key 限流 → ChatProxy。
+func extractChatModelField(body []byte) string {
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(body, &obj); err != nil {
+		return ""
+	}
+	raw, ok := obj["model"]
+	if !ok {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(s)
+}
+
+// ChatProxy 将 POST /v1/chat/completions 反向代理至上游。
+// 若库中存在 model_instance 记录，则仅使用四表 + model_upstream.base_url（不与 gateway.yaml 混用）。
 func ChatProxy(cfg *config.Config, log *zap.Logger, rt *runtime.Store, col *metrics.Collector, db *gorm.DB) gin.HandlerFunc {
 	pick := upstream.NewPicker()
-	transport := &http.Transport{
+	baseTransport := &http.Transport{
 		ResponseHeaderTimeout: cfg.UpstreamTimeout,
 		DialContext:           (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
 	}
@@ -66,50 +86,99 @@ func ChatProxy(cfg *config.Config, log *zap.Logger, rt *runtime.Store, col *metr
 			col.RecordChat(st, time.Since(start).Milliseconds(), code)
 		}()
 
-		snap := rt.Snapshot()
-		base, upID, upHost, err := pick.Pick(snap)
-		if err != nil || base == nil {
-			WriteGatewayError(c, http.StatusServiceUnavailable, "UPSTREAM_NOT_CONFIGURED", "上游服务未配置")
-			return
-		}
-
+		var body []byte
 		if c.Request.Body != nil {
-			body, err := io.ReadAll(c.Request.Body)
+			var err error
+			body, err = io.ReadAll(c.Request.Body)
 			_ = c.Request.Body.Close()
 			if err != nil {
 				WriteGatewayError(c, http.StatusBadRequest, "INVALID_REQUEST", "无法读取请求体")
 				return
 			}
-			body = repository.RewriteChatCompletionsModelBody(body, db, upID)
-			c.Request.Body = io.NopCloser(bytes.NewReader(body))
-			c.Request.ContentLength = int64(len(body))
 		}
 
+		var (
+			base     *http.Transport
+			rev      *httputil.ReverseProxy
+			upID     string
+			upHost   string
+			director func(*http.Request)
+		)
+
+		if db != nil && repository.UseDatabaseModelLibrary(db) {
+			modelName := extractChatModelField(body)
+			if modelName == "" {
+				WriteGatewayError(c, http.StatusBadRequest, "INVALID_REQUEST", "请求体缺少 model 字段")
+				return
+			}
+			tgt, err := repository.PickChatTarget(db, modelName)
+			if err != nil {
+				if log != nil {
+					log.Debug("chat model pick failed", zap.String("model", modelName), zap.Error(err))
+				}
+				WriteGatewayError(c, http.StatusNotFound, "MODEL_UNAVAILABLE", "未找到可用的模型实例")
+				return
+			}
+			body = repository.RewriteChatBodyToProvider(body, tgt.ProviderModelCode)
+			transport := *baseTransport
+			transport.ResponseHeaderTimeout = tgt.Timeout
+			base = &transport
+			upID = "inst:" + strconv.FormatInt(tgt.InstanceID, 10)
+			upHost = tgt.UpstreamHost
+			rev = httputil.NewSingleHostReverseProxy(tgt.BaseURL)
+			orig := rev.Director
+			director = func(req *http.Request) {
+				orig(req)
+				if tgt.APIKey != "" {
+					req.Header.Set("Authorization", "Bearer "+tgt.APIKey)
+				} else {
+					req.Header.Del("Authorization")
+				}
+				for _, h := range hopByHopHeaders {
+					req.Header.Del(h)
+				}
+			}
+		} else {
+			snap := rt.Snapshot()
+			var err error
+			var pu *url.URL
+			pu, upID, upHost, err = pick.Pick(snap)
+			if err != nil || pu == nil {
+				WriteGatewayError(c, http.StatusServiceUnavailable, "UPSTREAM_NOT_CONFIGURED", "上游服务未配置")
+				return
+			}
+			body = repository.RewriteChatCompletionsModelBody(body, db, upID)
+			base = baseTransport
+			rev = httputil.NewSingleHostReverseProxy(pu)
+			orig := rev.Director
+			director = func(req *http.Request) {
+				orig(req)
+				if !cfg.ForwardClientAuthorization {
+					req.Header.Del("Authorization")
+					if cfg.UpstreamAPIKey != "" {
+						req.Header.Set("Authorization", "Bearer "+cfg.UpstreamAPIKey)
+					}
+				}
+				for _, h := range hopByHopHeaders {
+					req.Header.Del(h)
+				}
+			}
+		}
+
+		c.Request.Body = io.NopCloser(bytes.NewReader(body))
+		c.Request.ContentLength = int64(len(body))
 		c.Request.Form = nil
 		c.Request.PostForm = nil
 
-		proxy := httputil.NewSingleHostReverseProxy(base)
-		orig := proxy.Director
-		proxy.Director = func(req *http.Request) {
-			orig(req)
-			if !cfg.ForwardClientAuthorization {
-				req.Header.Del("Authorization")
-				if cfg.UpstreamAPIKey != "" {
-					req.Header.Set("Authorization", "Bearer "+cfg.UpstreamAPIKey)
-				}
-			}
-			for _, h := range hopByHopHeaders {
-				req.Header.Del(h)
-			}
-		}
-		proxy.Transport = transport
-		proxy.ModifyResponse = func(resp *http.Response) error {
+		rev.Director = director
+		rev.Transport = base
+		rev.ModifyResponse = func(resp *http.Response) error {
 			for _, h := range hopByHopHeaders {
 				resp.Header.Del(h)
 			}
 			return nil
 		}
-		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		rev.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 			if log != nil {
 				log.Warn("chat proxy upstream error",
 					zap.Error(err),
@@ -139,6 +208,7 @@ func ChatProxy(cfg *config.Config, log *zap.Logger, rt *runtime.Store, col *metr
 			}
 			gwErr := st == http.StatusBadGateway || st == http.StatusGatewayTimeout || st == http.StatusInternalServerError
 			dur := time.Since(start).Milliseconds()
+			snap := rt.Snapshot()
 			fields := []zap.Field{
 				zap.String("request_id", c.GetString("request_id")),
 				zap.String("method", c.Request.Method),
@@ -155,7 +225,7 @@ func ChatProxy(cfg *config.Config, log *zap.Logger, rt *runtime.Store, col *metr
 			accesslog.New(snap).Write(st, gwErr, fields...)
 		}()
 
-		proxy.ServeHTTP(cw, c.Request)
+		rev.ServeHTTP(cw, c.Request)
 		c.Abort()
 	}
 }

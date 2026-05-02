@@ -79,7 +79,6 @@ tmp/
 services/gateway/gateway.db
 services/gateway/**/gateway.db
 
-
 # JetBrains IDE (local)
 .idea/
 

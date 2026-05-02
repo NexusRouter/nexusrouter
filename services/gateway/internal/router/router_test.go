@@ -18,7 +18,7 @@ import (
 func TestRegister_Health_OK(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	cfg := &config.Config{EnableSwaggerUI: false}
+	cfg := &config.Config{}
 	rt, err := runtime.NewStore(cfg, nil)
 	require.NoError(t, err)
 	Register(r, Deps{

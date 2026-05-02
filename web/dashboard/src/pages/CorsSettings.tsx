@@ -33,6 +33,15 @@ function dedupe(a: string[]) {
   return o
 }
 
+const SUGGEST_HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
+const SUGGEST_HEADERS = [
+  'Authorization',
+  'Content-Type',
+  'X-Request-ID',
+  'Accept',
+  'Accept-Language',
+]
+
 /** CORS 段编辑与 bulk origins。 */
 export default function CorsSettingsPage() {
   const { message } = App.useApp()
@@ -111,11 +120,27 @@ export default function CorsSettingsPage() {
         <Form.Item name="allow_origins_bulk" label={t('pages.cors.bulkOrigins')}>
           <Input.TextArea rows={3} placeholder={t('pages.cors.bulkPlaceholder')} />
         </Form.Item>
-        <Form.Item name="allow_methods" label={t('pages.cors.allowMethods')}>
-          <Select mode="tags" tokenSeparators={[',']} />
+        <Form.Item
+          name="allow_methods"
+          label={t('pages.cors.allowMethods')}
+          extra={<span className="text-xs text-slate-500">{t('pages.cors.suggestMethodsHint')}</span>}
+        >
+          <Select
+            mode="tags"
+            tokenSeparators={[',']}
+            options={SUGGEST_HTTP_METHODS.map((v) => ({ value: v, label: v }))}
+          />
         </Form.Item>
-        <Form.Item name="allow_headers" label={t('pages.cors.allowHeaders')}>
-          <Select mode="tags" tokenSeparators={[',']} />
+        <Form.Item
+          name="allow_headers"
+          label={t('pages.cors.allowHeaders')}
+          extra={<span className="text-xs text-slate-500">{t('pages.cors.suggestHeadersHint')}</span>}
+        >
+          <Select
+            mode="tags"
+            tokenSeparators={[',']}
+            options={SUGGEST_HEADERS.map((v) => ({ value: v, label: v }))}
+          />
         </Form.Item>
         <Form.Item name="max_age_seconds" label={t('pages.cors.maxAge')}>
           <InputNumber min={0} className="w-full" />

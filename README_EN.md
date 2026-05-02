@@ -49,7 +49,7 @@ See `openspec/project.md` and `services/gateway/README.md` for more detail.
 
 After cloning, run **`pnpm install` once at the repository root** to install Husky and register the Git `pre-commit` hook (`core.hooksPath` points to `.husky/_`).
 
-Before each `git commit`, checks aligned with CI run based on **staged paths** (unchanged subprojects are skipped). Not included: gateway `make docs` (only when refreshing the embedded OpenAPI snapshot; run locally in `services/gateway`). Emergency bypass: `HUSKY=0 git commit ...`.
+Before each `git commit`, checks aligned with CI run based on **staged paths** (unchanged subprojects are skipped). Not included: optional gateway maintenance steps (see `services/gateway/README.md`). Emergency bypass: `HUSKY=0 git commit ...`.
 
 ## Contributing
 

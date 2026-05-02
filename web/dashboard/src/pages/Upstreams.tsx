@@ -5,11 +5,13 @@ import {
   Input,
   InputNumber,
   Modal,
+  Select,
   Space,
   Table,
   Tag,
   Typography,
 } from 'antd'
+import type { TFunction } from 'i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,6 +23,28 @@ type Routing = {
   strategy: string
   default_upstream_id: string
   active_upstream_id: string
+}
+
+const ROUTING_STRATEGIES = ['round_robin', 'weighted_random'] as const
+
+function formatRoutingStrategy(t: TFunction, strategy: string | undefined): string {
+  const s = strategy?.trim() || 'round_robin'
+  if (s === 'round_robin') return t('pages.upstreams.strategyRoundRobin')
+  if (s === 'weighted_random') return t('pages.upstreams.strategyWeightedRandom')
+  return s
+}
+
+function upstreamRoutingOptions(ups: Upstream[], currentId: string | undefined) {
+  const base = ups
+    .filter((u) => u.id)
+    .map((u) => ({
+      value: u.id,
+      label: `${u.id} (${u.base_url})`,
+    }))
+  const cur = String(currentId ?? '').trim()
+  const extra =
+    cur && !base.some((o) => o.value === cur) ? [{ value: cur, label: cur }] : []
+  return [...base, ...extra]
 }
 
 /** 上游列表与固定当前上游；支持写盘持久化。 */
@@ -73,8 +97,8 @@ export default function UpstreamsPage() {
   const data = snap.data
   const columns = useMemo(
     () => [
-      { title: 'ID', dataIndex: 'id', key: 'id' },
-      { title: 'Base URL', dataIndex: 'base_url', key: 'base_url' },
+      { title: t('pages.upstreams.colId'), dataIndex: 'id', key: 'id' },
+      { title: t('pages.upstreams.colBaseUrl'), dataIndex: 'base_url', key: 'base_url' },
       { title: t('pages.upstreams.colWeight'), dataIndex: 'weight', key: 'weight' },
     ],
     [t],
@@ -87,15 +111,15 @@ export default function UpstreamsPage() {
       </Typography.Title>
       <Typography.Paragraph type="secondary">
         {t('pages.upstreams.introBefore')}{' '}
-        <code className="rounded bg-slate-100 px-1">gateway.yaml</code>{' '}
+        <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">gateway.yaml</code>{' '}
         {t('pages.upstreams.introAfter')}{' '}
-        <code className="rounded bg-slate-100 px-1">NEXUSROUTER_GATEWAY_CONFIG_FILE</code>
+        <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">NEXUSROUTER_GATEWAY_CONFIG_FILE</code>
         {t('pages.upstreams.introEnd')}
       </Typography.Paragraph>
       {data && (
         <div className="flex flex-wrap gap-2">
           <Tag>
-            {t('pages.upstreams.strategy')}: {data.routing.strategy || 'round_robin'}
+            {t('pages.upstreams.strategy')}: {formatRoutingStrategy(t, data.routing.strategy)}
           </Tag>
           <Tag>
             {t('pages.upstreams.default')}: {data.routing.default_upstream_id || t('common.emDash')}
@@ -177,26 +201,26 @@ export default function UpstreamsPage() {
             {(fields, { add, remove }) => (
               <div className="space-y-2">
                 {fields.map((f) => (
-                  <Space key={f.key} align="baseline" className="flex w-full">
+                  <Space key={f.key} align="baseline" className="flex w-full flex-wrap">
                     <Form.Item
                       {...f}
-                      label="ID"
+                      label={t('pages.upstreams.fieldId')}
                       name={[f.name, 'id']}
                       rules={[{ required: true }]}
                     >
-                      <Input />
+                      <Input className="min-w-[120px]" />
                     </Form.Item>
                     <Form.Item
                       {...f}
-                      label="base_url"
+                      label={t('pages.upstreams.fieldBaseUrl')}
                       name={[f.name, 'base_url']}
                       rules={[{ required: true }]}
                     >
-                      <Input style={{ width: 280 }} />
+                      <Input className="min-w-[220px]" style={{ minWidth: 220 }} />
                     </Form.Item>
                     <Form.Item
                       {...f}
-                      label="weight"
+                      label={t('pages.upstreams.fieldWeight')}
                       name={[f.name, 'weight']}
                       initialValue={1}
                     >
@@ -213,21 +237,57 @@ export default function UpstreamsPage() {
               </div>
             )}
           </Form.List>
-          <Form.Item label="strategy" name={['routing', 'strategy']}>
-            <Input placeholder="round_robin | weighted_random" />
+
+          <Form.Item noStyle shouldUpdate>
+            {() => {
+              const ups = (form.getFieldValue('upstreams') as Upstream[] | undefined) ?? []
+              const strat = form.getFieldValue(['routing', 'strategy']) as string | undefined
+              const strategyOptions = [
+                { value: 'round_robin', label: t('pages.upstreams.strategyRoundRobin') },
+                { value: 'weighted_random', label: t('pages.upstreams.strategyWeightedRandom') },
+                ...(strat &&
+                !(ROUTING_STRATEGIES as readonly string[]).includes(strat)
+                  ? [{ value: strat, label: strat }]
+                  : []),
+              ]
+              const defCur = form.getFieldValue(['routing', 'default_upstream_id']) as string | undefined
+              const actCur = form.getFieldValue(['routing', 'active_upstream_id']) as string | undefined
+              return (
+                <>
+                  <Form.Item name={['routing', 'strategy']} label={t('pages.upstreams.fieldStrategy')}>
+                    <Select options={strategyOptions} className="max-w-md" />
+                  </Form.Item>
+                  <Form.Item
+                    name={['routing', 'default_upstream_id']}
+                    label={t('pages.upstreams.fieldDefaultUpstream')}
+                  >
+                    <Select
+                      allowClear
+                      showSearch
+                      optionFilterProp="label"
+                      placeholder={t('pages.upstreams.placeholderPickUpstream')}
+                      options={upstreamRoutingOptions(ups, defCur)}
+                      className="max-w-xl"
+                    />
+                  </Form.Item>
+                  <Form.Item
+                    name={['routing', 'active_upstream_id']}
+                    label={t('pages.upstreams.fieldActiveUpstream')}
+                  >
+                    <Select
+                      allowClear
+                      showSearch
+                      optionFilterProp="label"
+                      placeholder={t('common.optional')}
+                      options={upstreamRoutingOptions(ups, actCur)}
+                      className="max-w-xl"
+                    />
+                  </Form.Item>
+                </>
+              )
+            }}
           </Form.Item>
-          <Form.Item
-            label="default_upstream_id"
-            name={['routing', 'default_upstream_id']}
-          >
-            <Input />
-          </Form.Item>
-          <Form.Item
-            label="active_upstream_id（可空）"
-            name={['routing', 'active_upstream_id']}
-          >
-            <Input />
-          </Form.Item>
+
           <Button type="primary" htmlType="submit" loading={persistPut.isPending}>
             {t('pages.upstreams.submitWrite')}
           </Button>

@@ -11,10 +11,6 @@ import (
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/provider"
 )
 
-import (
-	_ "github.com/NexusRouter/nexusrouter/services/gateway/docs"
-)
-
 // Injectors from wire.go:
 
 func InitializeApp() (*app.Application, error) {

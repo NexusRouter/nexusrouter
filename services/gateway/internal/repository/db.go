@@ -61,5 +61,9 @@ func AutoMigrate(db *gorm.DB) error {
 		&SystemBootstrapRow{},
 		&ModelCatalogEntry{},
 		&ModelUpstreamBinding{},
+		&ModelVendor{},
+		&ModelBase{},
+		&ModelUpstream{},
+		&ModelInstance{},
 	)
 }

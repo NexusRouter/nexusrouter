@@ -1,4 +1,4 @@
-import { App, Button, Form, Input, InputNumber, Space, Switch, Table, Typography } from 'antd'
+import { App, Button, Form, Input, InputNumber, Select, Space, Switch, Table, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
@@ -18,6 +18,8 @@ type Rule = {
 }
 
 type FieldRow = { key: number; name: number }
+
+const RATE_LIMIT_DIMENSIONS = ['ip', 'api_key_fp'] as const
 
 /** 限流规则表编辑与整体保存。 */
 export default function RateLimitRulesPage() {
@@ -103,9 +105,34 @@ export default function RateLimitRulesPage() {
               },
               {
                 title: t('pages.rateLimits.colDimension'),
+                width: 200,
                 render: (_, r) => (
-                  <Form.Item name={[r.name, 'dimension']} noStyle rules={[{ required: true }]}>
-                    <Input placeholder={t('pages.rateLimits.dimPlaceholder')} />
+                  <Form.Item noStyle shouldUpdate>
+                    {() => {
+                      const raw = form.getFieldValue(['rules', r.name, 'dimension']) as
+                        | string
+                        | undefined
+                      const labels = new Map<string, string>([
+                        ['ip', t('pages.rateLimits.dimOptionIp')],
+                        ['api_key_fp', t('pages.rateLimits.dimOptionApiKey')],
+                      ])
+                      const options = [
+                        ...RATE_LIMIT_DIMENSIONS.map((value) => ({
+                          value,
+                          label: labels.get(value)!,
+                        })),
+                        ...(raw && !labels.has(raw) ? [{ value: raw, label: raw }] : []),
+                      ]
+                      return (
+                        <Form.Item name={[r.name, 'dimension']} noStyle rules={[{ required: true }]}>
+                          <Select
+                            className="w-full min-w-[168px]"
+                            popupMatchSelectWidth={false}
+                            options={options}
+                          />
+                        </Form.Item>
+                      )
+                    }}
                   </Form.Item>
                 ),
               },

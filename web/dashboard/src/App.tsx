@@ -4,6 +4,7 @@ import zhCN from 'antd/locale/zh_CN'
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import AdminLayout from './layouts/AdminLayout'
+import GatewayPolicyLayout from './layouts/GatewayPolicyLayout'
 import DashboardPage from './pages/Dashboard'
 import LoginPage from './pages/Login'
 import SetupPage from './pages/Setup'
@@ -16,7 +17,7 @@ import IpAccessPage from './pages/IpAccess'
 import SystemSettingsPage from './pages/SystemSettings'
 import ModelLibraryPage from './pages/ModelLibrary'
 import { useAuthStore } from './stores/authStore'
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import axios from 'axios'
 import { MessageBridge } from './components/MessageBridge'
 import { fetchBootstrapStatus } from './services/bootstrap'
@@ -48,6 +49,12 @@ function BootstrapShell() {
   const loc = useLocation()
   const [loading, setLoading] = useState(true)
   const [initialized, setInitialized] = useState(true)
+  /** 路由变化后、新一轮 bootstrap 拉取完成前为 true，避免沿用旧的 initialized 误判把 /login 打回 /setup。 */
+  const [refetching, setRefetching] = useState(false)
+
+  useLayoutEffect(() => {
+    setRefetching(true)
+  }, [loc.pathname])
 
   useEffect(() => {
     let cancelled = false
@@ -66,13 +73,14 @@ function BootstrapShell() {
       } finally {
         if (!cancelled) {
           setLoading(false)
+          setRefetching(false)
         }
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [loc.pathname])
 
   if (loading) {
     return (
@@ -80,6 +88,10 @@ function BootstrapShell() {
         <Spin size="large" />
       </div>
     )
+  }
+
+  if (refetching) {
+    return <Outlet />
   }
 
   if (!initialized && loc.pathname !== '/setup') {
@@ -120,9 +132,12 @@ function LocalizedApp() {
                 <Route path="/model-library" element={<ModelLibraryPage />} />
                 <Route path="/api-keys" element={<ApiKeysPage />} />
                 <Route path="/logs" element={<AccessLogsPage />} />
-                <Route path="/rate-limits" element={<RateLimitRulesPage />} />
-                <Route path="/cors" element={<CorsSettingsPage />} />
-                <Route path="/ip-access" element={<IpAccessPage />} />
+                <Route path="/gateway" element={<GatewayPolicyLayout />}>
+                  <Route index element={<Navigate to="rate-limits" replace />} />
+                  <Route path="rate-limits" element={<RateLimitRulesPage />} />
+                  <Route path="cors" element={<CorsSettingsPage />} />
+                  <Route path="ip-access" element={<IpAccessPage />} />
+                </Route>
                 <Route path="/settings" element={<SystemSettingsPage />} />
               </Route>
             </Route>

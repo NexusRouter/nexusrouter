@@ -2,10 +2,15 @@
 
 ## Purpose
 
-NexusRouter 网关对 **OpenAI 兼容 Chat Completions** 的反向代理、鉴权与错误处理，以及 **OpenAPI 3.0** 契约暴露、**swaggo/swag** 生成物与 **Swagger UI** 的交付要求（归档自 change `openai-chat-completions-proxy`）。
+NexusRouter 网关对 **OpenAI 兼容 Chat Completions** 的反向代理、鉴权与错误处理（归档自 change `openai-chat-completions-proxy`）。
+
+## 实现说明（当前代码库）
+
+- 网关 **不**通过 HTTP 提供机读 OpenAPI / Swagger：**无** **`GET /openapi.json`** / **`GET /openapi.yaml`**、**无** Swagger UI、**无** swag 生成物或仓库内嵌 OpenAPI 文档包。
+- 产品 **不**要求交付或维护 **OpenAPI 3.0** 规范文档：无义务在仓库提交 **`openapi.yaml`/`openapi.json`**、无 **`swag init`** 等生成链路作为交付物。
+- 下文凡涉及 **OpenAPI 机读暴露**、**嵌入文档**、**swag**、**Swagger UI**、**OpenAPI 3.0 文档** 的 **MUST/Scenario**，均视为历史归档；与上段冲突时以上段为准。
 
 ## Requirements
-
 ### Requirement: OpenAI 兼容路径与 HTTP 方法
 
 网关 MUST 注册 **POST `/v1/chat/completions`**，且仅对该路径提供本规范所述的反向代理行为（与其他路由并存）。
@@ -115,79 +120,44 @@ NexusRouter 网关对 **OpenAI 兼容 Chat Completions** 的反向代理、鉴�
 - **WHEN** 转发路径发生 panic
 - **THEN** 进程不退出，客户端收到 **500** 与统一 JSON（无栈信息），且 Zap 记录 panic 摘要
 
-### Requirement: OpenAPI 3.0 规范可机读暴露
+### Requirement: 无 OpenAPI 3.0 文档与无网关机读端点
 
-网关 MUST 通过 **HTTP GET** 提供至少一份 **OpenAPI 3.0** 文档（`application/json` 或 `application/yaml`），且文档根字段 **`openapi`** MUST 以 **`3.0.`** 为前缀（例如 `3.0.3`）。
+网关 MUST NOT 注册 **`GET /openapi.json`**、**`GET /openapi.yaml`** 或 **Swagger UI**；MUST NOT 将 **OpenAPI 3.0** 生成物或内嵌文档包作为必选交付物。下文历史条款中凡要求提供 **OpenAPI 3.0** 文档、嵌入 OpenAPI、swag 生成或文档 UI 的 **MUST**，均以文首 **实现说明** 为准，**不适用**当前实现。
 
-#### Scenario: 获取 OpenAPI JSON 或 YAML
+#### Scenario: OpenAPI 路径未注册
 
-- **WHEN** 客户端请求文档约定路径（如 **GET `/openapi.yaml`** 或 **GET `/openapi.json`**，以实现注册为准）
-- **THEN** 响应状态码为 **200**，`Content-Type` 与正文格式一致，且正文可被标准 OpenAPI 3.0 解析器解析
+- **WHEN** 客户端请求 **GET `/openapi.json`** 或 **GET `/openapi.yaml`**
+- **THEN** 响应为 **404**（或未匹配路由之等价行为）
 
-#### Scenario: 版本字段合法
+### Requirement: OpenAI 兼容模型列表端点
 
-- **WHEN** 解析该文档根对象
-- **THEN** 存在 **`openapi`** 字符串且以 **`3.0.`** 为前缀（OpenAPI 3.0.x）
+网关 SHALL 注册 **GET `/v1/models`**，且 MUST 在与 **POST `/v1/chat/completions`** 相同的网关入口鉴权链下执行（**Bearer** 优先，可选 **`X-API-Key`** 若项目仍声明兼容）。成功响应 MUST 为 JSON，且 **`object`** 字段为 **`list`**，**`data`** 为数组；数组元素 MUST 至少包含 **`id`**、**`object`**（值为 **`model`**）、**`created`**（Unix 秒，整数）、**`owned_by`**（字符串，可为占位）。
 
-### Requirement: OpenAPI 中 Chat Completions 路径与动词
+#### Scenario: 鉴权失败不列模型
 
-文档 MUST 在 **`paths`** 下描述 **`/v1/chat/completions`** 的 **`post`** 操作，且 **`operationId`** 或 **`summary`** 之一 MUST 明示「Chat Completions」语义（英文或中英文均可识别）。
+- **WHEN** 请求未携带有效网关凭证
+- **THEN** 响应 **401** 且**不**返回模型列表 body
 
-#### Scenario: 路径存在
+#### Scenario: 形状可被客户端解析
 
-- **WHEN** 审查者检索文档 `paths["/v1/chat/completions"]`
-- **THEN** 存在 **`post`** 对象且包含 **请求体**（`requestBody`）与 **至少一个 2xx 响应** 声明
+- **WHEN** 客户端解析成功响应 JSON
+- **THEN** 可读取 **`data`** 数组且每项含 **`id`**
 
-### Requirement: OpenAPI 与 OpenAI 概览对齐的认证说明
+### Requirement: 可选模型检索端点
 
-文档 MUST 声明与 [OpenAI API Overview — Authentication](https://developers.openai.com/api/reference/overview) 一致的 **HTTP Bearer** 认证方式：在 **`components.securitySchemes`** 中定义 **`type: http`、`scheme: bearer`**（或 OAS3 等价写法），且 **`/v1/chat/completions` POST** MUST 引用该安全要求（全局 `security` 或操作级 `security` 均可）。
+网关 MAY 注册 **GET `/v1/models/:model`**；若模型 id 不可用，SHALL 返回 **404** 或 OpenAI 常见错误包装（与实现选定一致，且在全仓库唯一）。
 
-#### Scenario: Bearer 方案存在且被操作引用
+#### Scenario: 未知模型
 
-- **WHEN** 解析 `components.securitySchemes` 与 `paths./v1/chat/completions.post.security`（或根级 `security`）
-- **THEN** 客户端可识别需携带 **`Authorization: Bearer`** 凭证
+- **WHEN** 请求不存在的 **`model`** id
+- **THEN** 响应状态与 body 与「不存在」语义一致且不含上游密钥信息
 
-### Requirement: OpenAPI 对外参考链接
+### Requirement: 方法拒绝一致性
 
-文档 MUST 在 **`info.description`** 或 **`externalDocs`** 中包含指向 **`https://developers.openai.com/api/reference/overview`** 的 URL，以便读者对照官方概览。
+对 **`/v1/models`** 的 **POST/PUT/DELETE**（若未实现）SHALL 返回 **405** 与统一 JSON 错误，与 **`/v1/chat/completions`** 的非常用方法策略一致。
 
-#### Scenario: 链接可访问性（静态检查）
+#### Scenario: POST 模型列表被拒绝
 
-- **WHEN** 对文档文本执行字符串检查（测试或 CI）
-- **THEN** 包含上述 **https** 完整 URL 子串
+- **WHEN** 客户端对 **`/v1/models`** 发起 **POST**
+- **THEN** **405** 且 body 为网关统一错误格式
 
-### Requirement: OpenAPI 覆盖健康检查
-
-OpenAPI 文档 MUST 在 **`paths`** 下描述 **`/health`** 的 **`get`** 操作，并声明 **200** 响应中 **`status`**、**`version`**、**`server_time`** 字段（类型与示例与实现一致）。
-
-#### Scenario: Swagger UI 可发现健康接口
-
-- **WHEN** 审查者打开 Swagger UI 并检索 **`/health`**
-- **THEN** 可见 **GET** 操作且可发起 **Try it out** 请求
-
-### Requirement: swaggo/swag 自动生成
-
-项目 MUST 使用 **`github.com/swaggo/swag`** 从 Go 源码注释生成文档源码与中间产物（`docs.go` 及至少一种 JSON/YAML）；生成命令 MUST 在 **`services/gateway`** 的 README 或 Makefile/`go generate` 中可发现。
-
-#### Scenario: 可复现生成
-
-- **WHEN** 开发者在网关模块根执行文档化生成命令（如 `make docs` 或 `go generate ./...`）
-- **THEN** 以零退出码完成且产出文件集与仓库策略一致（见 `design.md`）
-
-### Requirement: Swagger UI
-
-当配置允许（见 `design.md`）时，网关 MUST 提供 **Swagger UI**，且 UI MUST 加载本服务提供的 **OpenAPI 3.0** 文档 URL（而非错误地固定仅支持已废弃的 Swagger 2 且与仓库 OAS3 不一致的地址）。
-
-#### Scenario: UI 可访问
-
-- **WHEN** 配置为开启文档 UI 且请求 **GET `/swagger/index.html`**（或实现注册的等价入口）
-- **THEN** 响应 **200**，且 HTML 中引用之 spec URL 指向上述 OAS3 文档路径
-
-### Requirement: 测试驱动验收（文档与契约）
-
-针对「OpenAPI 3.0 暴露」「OpenAPI 中 Chat 路径存在」「Bearer 安全」「Swagger UI 入口」的自动化测试 MUST **先于** 使上述行为通过的生产代码合并（同一 PR 或严格有序提交：测试提交可红，紧随实现提交转绿）；合并到主分支时 **MUST 全绿**。
-
-#### Scenario: CI 执行文档相关测试
-
-- **WHEN** CI 运行 `go test`（含 `-count=1` 若项目约定）
-- **THEN** 包含对 OpenAPI 与 UI 的测试包且通过

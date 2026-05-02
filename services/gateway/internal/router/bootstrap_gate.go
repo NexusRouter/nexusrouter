@@ -2,7 +2,6 @@ package router
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/handler"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/repository"
@@ -49,12 +48,6 @@ func bootstrapPathAllowlisted(method, path string) bool {
 	switch method {
 	case http.MethodGet:
 		if path == "/health" {
-			return true
-		}
-		if path == "/openapi.yaml" || path == "/openapi.json" {
-			return true
-		}
-		if strings.HasPrefix(path, "/swagger/") {
 			return true
 		}
 		if path == "/api/bootstrap/v1/status" {

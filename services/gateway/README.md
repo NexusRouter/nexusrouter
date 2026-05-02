@@ -6,7 +6,6 @@ NexusRouter 网关服务，模块路径：`github.com/NexusRouter/nexusrouter/se
 
 - **Go 1.25.x**（与 `go.mod` 中 `go` 指令一致）
 - （可选）**Wire**：`go install github.com/google/wire/cmd/wire@v0.7.0`
-- （可选）**Swag / Node**：仅在需要**从源码注释重新生成** `docs/` 与 `internal/openapi/openapi.yaml` 时执行 `make docs`（需 Node.js 22+ 以运行 `npx swagger2openapi`）
 - （可选）**Air 热重载**：`go install github.com/air-verse/air@latest`，在项目根执行 `air`（需自行添加 `.air.toml`）
 
 ## 常用命令
@@ -15,8 +14,6 @@ NexusRouter 网关服务，模块路径：`github.com/NexusRouter/nexusrouter/se
 cd services/gateway
 go run ./cmd/api
 ```
-
-（若修改了 swag 注释并需更新嵌入的 OpenAPI，可本地执行 `make docs` 后提交 `internal/openapi/openapi.yaml` 与 `docs/` 变更。）
 
 默认监听 **:8080**（可用环境变量 `**NEXUSROUTER_HTTP_LISTEN_ADDR`** 覆盖，例如 `:9090`）。
 
@@ -39,9 +36,6 @@ go run -ldflags "-X github.com/NexusRouter/nexusrouter/services/gateway/internal
 | 路径                              | 说明                                                                                                     |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | `GET /health`                   | 健康检查（**无需鉴权**），返回 `status`、`version`、`server_time`（UTC RFC3339Nano）                                    |
-| `GET /openapi.yaml`             | **OpenAPI 3.0** 规范（YAML）                                                                               |
-| `GET /openapi.json`             | 同上（由嵌入 YAML 转 JSON）                                                                                    |
-| `GET /swagger/index.html`       | **Swagger UI**（当 `NEXUSROUTER_ENABLE_SWAGGER_UI` 不为 `false` 时启用）                                       |
 | `POST /v1/chat/completions`     | OpenAI 兼容 Chat Completions **反向代理**（需网关鉴权与上游配置）                                                        |
 | `GET /v1/models`                | OpenAI 兼容 **模型列表**（子集；需与 Chat 相同的网关 API Key；仅返回模型库中「已启用绑定且上游 id 存在于当前快照」的条目） |
 | `GET /v1/models/{model}`        | 检索单个已发布模型元数据（同上鉴权；不存在则 404）                                                                                    |
@@ -60,19 +54,21 @@ OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api
 
 ### 中间件与限流顺序
 
-引擎级：**CORS**（可选，来自 `gateway.yaml` 的 `cors`）→ `**X-Request-ID`** → **Recovery** → **统一 JSON 错误** → **按 IP 限流**（全局 `rate_limit.rps_per_ip` 与 `rate_limit_rules` 中 `dimension: ip` 的规则，鉴权前；`/health`、`/openapi*`、`/swagger*`、`/internal*`、`/api/admin*` 与 **OPTIONS** 跳过）→ **IP 名单**（`ip_access`；跳过路径同上）→ 业务路由。
+引擎级：**CORS**（可选，来自 `gateway.yaml` 的 `cors`）→ `**X-Request-ID`** → **Recovery** → **统一 JSON 错误** → **按 IP 限流**（全局 `rate_limit.rps_per_ip` 与 `rate_limit_rules` 中 `dimension: ip` 的规则，鉴权前；`/health`、`/internal*`、`/api/admin*` 与 **OPTIONS** 跳过）→ **IP 名单**（`ip_access`；跳过路径同上）→ 业务路由。
 
 `GET /v1/models` 与 `GET /v1/models/:model` 链：**GatewayAuth**（与 Chat 相同；**OPTIONS** 跳过）→ 返回模型库聚合结果（不转发上游）。
 
-`POST /v1/chat/completions` 链：**GatewayAuth** → **按 Key 限流**（全局 `rps_per_key` 与规则维度 `api_key_fp`；**OPTIONS** 跳过）→ **ChatProxy**（若数据库存在模型库绑定：在已确定命中的 **`upstream_id`** 上，将 JSON body 的 **`model`** 按绑定 **`actual_model`** 改写后再转发上游）。
+`POST /v1/chat/completions` 链：**GatewayAuth** → **按 Key 限流** → **ChatProxy**。若数据库中存在 **至少一条 `model_instance`**，则 **仅** 使用四表聚合：按逻辑 **`model_code`** 选实例，向 **`model_upstream.base_url`** 转发，使用行内 **`api_key`**，并将 body 中 **`model`** 改写为 **`provider_model_code`**（**不再**与 `gateway.yaml` 中的上游列表混用）。否则回退为 **YAML 快照 + Picker** 与旧版 **`model_catalog_entries` / `model_upstream_bindings`** 改写逻辑。
 
 两维限流同时启用时：**任一超限即 429**（先执行 IP，再执行 Key）。超限 Zap 为 **Warn**，含 `**request_id`** 与 `**reason`**：`RATE_LIMIT_IP` / `RATE_LIMIT_KEY`。名单拒绝为 403，错误码 `**IP_BLOCKED`**。
 
-### 模型库（管理 API 与同步）
+### 模型库（四表聚合，无历史迁移）
 
-- 数据表在 **AutoMigrate** 中创建：`model_catalog_entries`（逻辑模型 id、展示名等）、`model_upstream_bindings`（绑定到 `gateway.yaml` 中的 **上游 id**、启用、优先级、可选 **actual_model**）。**`actual_model` 非空** 时，**Chat Completions** 转发会把请求 JSON 中的 **`model`** 替换为该值（与当前 **Picker** 命中的上游一致时生效）。
-- 管理端路径前缀：`GET/POST/PUT/DELETE /api/admin/v1/model-library/...`（需管理 JWT；写操作遵循与 API Key 相同的 **operator 只读** 策略）。
-- **从上游同步**：`POST /api/admin/v1/model-library/sync`，请求体 `{"upstream_id":"...","bearer":"可选"}`；向该上游的 `{base_url}/v1/models` 发起 GET。若未传 `bearer`，则使用环境变量 **`NEXUSROUTER_UPSTREAM_API_KEY`**。响应仅返回拉取到的模型 id 列表（**不自动写入**目录，由控制台或后续流程决定）。
+- **新表**（AutoMigrate）：`model_vendor`、`model_base`、`model_upstream`（含 **`base_url` / `api_key`**）、`model_instance`（**`provider_model_code`、priority、weight、is_official** 等）。**不提供**自旧 `model_catalog_entries` 的自动迁移；新部署直接建表即可。
+- **至少存在一条 `model_instance`** 时，公开 **`/v1/models`** 与 **Chat** 仅走上述四表，**不并存** `gateway.yaml` 上游。
+- 管理端：`/api/admin/v1/model-library/vendors|bases|upstreams|instances` 的 REST（需管理 JWT；写操作 **operator 只读** 策略不变）。
+- **从上游同步**：`POST /api/admin/v1/model-library/sync`，请求体 **`{"model_upstream_id":123,"bearer":"可选"}`**；向该 **`model_upstream`** 行的 **`{base_url}/v1/models`** 发起 GET；**bearer** 缺省顺序：请求体 → 行内 **`api_key`** → **`NEXUSROUTER_UPSTREAM_API_KEY`**。响应仅返回模型 id 列表（不自动入库）。
+- 旧表 **`model_catalog_entries` / `model_upstream_bindings`** 仍可由 AutoMigrate 创建；在无 **`model_instance`** 数据时，Chat 仍可使用旧绑定 + YAML Picker。
 
 ### 进阶管理（限流规则 / CORS / IP 名单 / 日志）
 
@@ -98,7 +94,6 @@ OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api
 | `NEXUSROUTER_UPSTREAM_API_KEY`               | 发往上游的 Bearer（在未开启透传客户端 `Authorization` 时注入）。                                                                                                                   |
 | `NEXUSROUTER_FORWARD_CLIENT_AUTHORIZATION`   | `true` 时将客户端 `Authorization` 原样转发上游。                                                                                                                           |
 | `NEXUSROUTER_UPSTREAM_TIMEOUT`               | 等待上游响应头超时，如 `120s`（默认 120s）。                                                                                                                                   |
-| `NEXUSROUTER_ENABLE_SWAGGER_UI`              | 设为 `false` 关闭 Swagger UI（OpenAPI 路由仍可用）。                                                                                                                       |
 | `NEXUSROUTER_ENABLE_ADMIN_CONSOLE`           | **默认 `true`**（未设置环境变量即启用 `**/api/admin/v1/*`**）。设为 `false` 可关闭管理 API；仍需 JWT 与管理员来源配置完整方具备登录条件。                                                                                                |
 | `NEXUSROUTER_ADMIN_JWT_SECRET`               | 管理端 JWT **HMAC** 密钥（建议随机长字符串，勿提交到 Git）。**未设置**时启动会**自动生成 UUID v4 格式**密钥（重启会变；生产请显式配置）。                                                                                                                        |
 | `NEXUSROUTER_ADMIN_JWT_EXPIRE`               | 访问令牌有效期，如 `24h`（默认 24h）。                                                                                                                                       |
@@ -113,7 +108,7 @@ OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api
 
 ### 首次初始化（`/api/bootstrap/v1`）
 
-数据库表 `**system_bootstrap`** 保存全局 `**initialized`** 标志。未完成首次向导时，网关对除白名单外的 HTTP 请求返回 **403**（`code: BOOTSTRAP_REQUIRED`）；白名单含 `**GET /health`**、`**GET /api/bootstrap/v1/status`**、`**POST /api/bootstrap/v1/complete**`、`**POST /api/admin/v1/auth/login**`、`**GET /api/admin/v1/auth/password-reset-info**` 及 OpenAPI/Swagger 静态路径等。
+数据库表 `**system_bootstrap`** 保存全局 `**initialized`** 标志。未完成首次向导时，网关对除白名单外的 HTTP 请求返回 **403**（`code: BOOTSTRAP_REQUIRED`）；白名单含 `**GET /health`**、`**GET /api/bootstrap/v1/status`**、`**POST /api/bootstrap/v1/complete**`、`**POST /api/admin/v1/auth/login**`、`**GET /api/admin/v1/auth/password-reset-info**` 等。
 
 
 | 方法     | 路径                           | 说明                                                                                                                                                                            |
@@ -158,7 +153,7 @@ OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api
 
 除 `login` 与 `password-reset-info` 外，均须在请求头携带 `**Authorization: Bearer <access_token>`**。
 
-**安全建议**：管理 API 与控制台应仅在内网或通过 **HTTPS** 暴露；JWT 与 API Key 勿写入前端仓库。生产环境可将 `NEXUSROUTER_ENABLE_SWAGGER_UI` 设为 `false` 以关闭独立 Swagger UI 入口（`/openapi.*` 仍可提供规范）。
+**安全建议**：管理 API 与控制台应仅在内网或通过 **HTTPS** 暴露；JWT 与 API Key 勿写入前端仓库。
 
 ### Web 仪表盘（`web/dashboard`）
 
@@ -204,12 +199,6 @@ OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api
 
 - **推荐**：`Authorization: Bearer <API_KEY>`（与 OpenAI 客户端习惯一致）。
 - `**X-API-Key`**：**deprecated**，仍支持以兼容旧客户端；新集成请迁移到 Bearer。
-
-### OpenAPI 与 Swag 注释
-
-- 运行时 **`/openapi.yaml`**、**`/openapi.json`** 来自仓库内 **`internal/openapi/openapi.yaml`**（`go:embed`），与 **Go 源码中的 swag 注释**（`cmd/api/main.go`、`internal/handler` 等）配合维护；注释主要用于标注与分组，更新规范时请同步提交 YAML（或本地执行 `make docs` 再检视差异）。
-- `docs/` 下的 `docs.go`、`swagger.yaml` 等为 **swag init** 中间产物，可选提交；`docs/docs_test.go` 为手写测试。
-- **`make test`** / **`make build-api`** 不再自动运行文档生成；CI 亦不生成文档。
 
 ### 重新生成 Wire
 

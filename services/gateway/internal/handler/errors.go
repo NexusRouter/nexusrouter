@@ -11,6 +11,13 @@ import (
 
 const headerRequestID = "X-Request-ID"
 
+// GatewayErrorBody 网关统一错误 JSON 形状（与 WriteGatewayError 一致）。
+type GatewayErrorBody struct {
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	RequestID string `json:"request_id"`
+}
+
 func randomRequestID() string {
 	b := make([]byte, 8)
 	_, _ = rand.Read(b)

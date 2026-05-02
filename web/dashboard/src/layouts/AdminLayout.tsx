@@ -1,15 +1,13 @@
 import type { ReactNode } from 'react'
 import {
   BarChart3,
-  Globe,
   KeyRound,
   LogOut,
   Menu,
   ScrollText,
   Server,
   Settings,
-  Shield,
-  Gauge,
+  SlidersHorizontal,
   Sparkles,
   Boxes,
 } from 'lucide-react'
@@ -41,9 +39,12 @@ export default function AdminLayout() {
     { key: 'model-library', path: '/model-library', labelKey: 'layout.menuModelLibrary', icon: <Boxes className="h-4 w-4" /> },
     { key: 'api-keys', path: '/api-keys', labelKey: 'layout.menuApiKeys', icon: <KeyRound className="h-4 w-4" /> },
     { key: 'logs', path: '/logs', labelKey: 'layout.menuLogs', icon: <ScrollText className="h-4 w-4" /> },
-    { key: 'rate-limits', path: '/rate-limits', labelKey: 'layout.menuRateLimits', icon: <Gauge className="h-4 w-4" /> },
-    { key: 'cors', path: '/cors', labelKey: 'layout.menuCors', icon: <Globe className="h-4 w-4" /> },
-    { key: 'ip-access', path: '/ip-access', labelKey: 'layout.menuIpAccess', icon: <Shield className="h-4 w-4" /> },
+    {
+      key: 'gateway-policy',
+      path: '/gateway',
+      labelKey: 'layout.menuGatewayPolicy',
+      icon: <SlidersHorizontal className="h-4 w-4" />,
+    },
     { key: 'settings', path: '/settings', labelKey: 'layout.menuSettings', icon: <Settings className="h-4 w-4" /> },
   ]
 
@@ -51,6 +52,9 @@ export default function AdminLayout() {
     const p = loc.pathname
     if (p.startsWith('/model-library')) {
       return 'model-library'
+    }
+    if (p.startsWith('/gateway')) {
+      return 'gateway-policy'
     }
     for (const it of items) {
       if (it.key !== 'dashboard' && p.startsWith(it.path)) {

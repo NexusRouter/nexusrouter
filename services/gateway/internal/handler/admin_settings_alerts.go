@@ -52,7 +52,6 @@ func adminSystemSettingsGet(cfg *config.Config, rt *runtime.Store) gin.HandlerFu
 			{Key: "http_listen_addr", Value: cfg.HTTPListenAddr, Mutability: "restart_required", Hint: "环境变量 NEXUSROUTER_HTTP_LISTEN_ADDR"},
 			{Key: "upstream_timeout", Value: cfg.UpstreamTimeout.String(), Mutability: "restart_required", Hint: "NEXUSROUTER_UPSTREAM_TIMEOUT"},
 			{Key: "gateway_config_file", Value: cfg.GatewayConfigFile, Mutability: "read_only", Hint: "修改须改环境变量并重启"},
-			{Key: "enable_swagger_ui", Value: cfg.EnableSwaggerUI, Mutability: "restart_required"},
 		}
 		if snap != nil {
 			fields = append(fields,

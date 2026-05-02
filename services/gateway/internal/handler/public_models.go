@@ -19,11 +19,37 @@ type openAIModelJSON struct {
 	OwnedBy string `json:"owned_by"`
 }
 
-// ListModels 返回 GET /v1/models，仅含已发布（启用绑定且上游存在于快照）的目录项。
+// ListModels 返回 GET /v1/models。
 func ListModels(db *gorm.DB, rt *runtime.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if db == nil || rt == nil {
 			c.JSON(http.StatusOK, gin.H{"object": "list", "data": []any{}})
+			return
+		}
+		if repository.UseDatabaseModelLibrary(db) {
+			rows, err := repository.ListPublishedModelsAggregation(db)
+			if err != nil {
+				WriteGatewayError(c, http.StatusInternalServerError, "INTERNAL", "读取模型库失败")
+				return
+			}
+			out := make([]openAIModelJSON, 0, len(rows))
+			for _, r := range rows {
+				ob := r.OwnedBy
+				if ob == "" {
+					ob = "nexusrouter"
+				}
+				cr := r.CreatedAt
+				if cr == 0 {
+					cr = 1626777600
+				}
+				out = append(out, openAIModelJSON{
+					ID:      r.ModelCode,
+					Object:  "model",
+					Created: cr,
+					OwnedBy: ob,
+				})
+			}
+			c.JSON(http.StatusOK, gin.H{"object": "list", "data": out})
 			return
 		}
 		snap := rt.Snapshot()
@@ -60,6 +86,39 @@ func RetrieveModel(db *gorm.DB, rt *runtime.Store) gin.HandlerFunc {
 		mid := c.Param("model")
 		if db == nil || rt == nil {
 			WriteGatewayError(c, http.StatusNotFound, "MODEL_NOT_FOUND", "模型不存在")
+			return
+		}
+		if repository.UseDatabaseModelLibrary(db) {
+			ent, err := repository.GetPublishedModelBase(db, mid)
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					WriteGatewayError(c, http.StatusNotFound, "MODEL_NOT_FOUND", "模型不存在")
+					return
+				}
+				WriteGatewayError(c, http.StatusInternalServerError, "INTERNAL", "读取模型库失败")
+				return
+			}
+			ob := ""
+			var inst0 repository.ModelInstance
+			if err := db.Where("base_model_id = ? AND status = ?", ent.ID, 1).First(&inst0).Error; err == nil {
+				var v repository.ModelVendor
+				if err := db.First(&v, inst0.VendorID).Error; err == nil {
+					ob = v.VendorName
+				}
+			}
+			if ob == "" {
+				ob = "nexusrouter"
+			}
+			cr := ent.CreatedAt.Unix()
+			if cr == 0 {
+				cr = 1626777600
+			}
+			c.JSON(http.StatusOK, openAIModelJSON{
+				ID:      ent.ModelCode,
+				Object:  "model",
+				Created: cr,
+				OwnedBy: ob,
+			})
 			return
 		}
 		snap := rt.Snapshot()
