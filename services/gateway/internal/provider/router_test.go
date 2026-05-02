@@ -20,11 +20,11 @@ func TestProvideEngine_HealthAndNotFound(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	log := zap.NewNop()
 	cfg := &config.Config{EnableSwaggerUI: false}
-	ks, err := keystore.New(cfg, log)
+	ks, err := keystore.New(cfg, log, nil)
 	require.NoError(t, err)
-	rt, err := runtime.NewStore(cfg)
+	rt, err := runtime.NewStore(cfg, nil)
 	require.NoError(t, err)
-	e := ProvideEngine(log, cfg, ks, rt, ProvideMetrics())
+	e := ProvideEngine(log, cfg, ks, rt, ProvideMetrics(), nil)
 
 	t.Run("GET /health", func(t *testing.T) {
 		rec := httptest.NewRecorder()

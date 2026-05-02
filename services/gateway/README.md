@@ -19,6 +19,13 @@ go run ./cmd/api
 
 默认监听 **:8080**（可用环境变量 **`NEXUSROUTER_HTTP_LISTEN_ADDR`** 覆盖，例如 `:9090`）。
 
+### 持久化（SQLite / Postgres）
+
+- 进程启动时会打开 **GORM** 数据库：未设置 **`NEXUSROUTER_DATABASE_URL`** 时使用本地 **SQLite** 文件（默认文件名 **`gateway.db`**，可用 **`NEXUSROUTER_SQLITE_PATH`** 覆盖路径）。
+- 设置 **`NEXUSROUTER_DATABASE_URL`**（Postgres 连接串）时改用 **Postgres**，与 SQLite 共用同一套模型与业务逻辑。
+- 启动时执行 **`AutoMigrate`** 建表；若库中尚无网关 YAML / API Key / 管理员数据，且存在已配置的 **`NEXUSROUTER_GATEWAY_CONFIG_FILE`**、**`NEXUSROUTER_GATEWAY_KEYS_FILE`** 或环境变量中的管理员 bcrypt，则**一次性导入**到数据库。
+- **真源**为数据库：管理 API `persist: true` 写入数据库；**`SIGHUP`** / **`POST /internal/reload-keys`** / **`reload-config`** 在数据库模式下从库重载。
+
 版本号可通过构建注入，例如：
 
 ```bash
@@ -35,18 +42,18 @@ go run -ldflags "-X github.com/NexusRouter/nexusrouter/services/gateway/internal
 | `GET /openapi.json`             | 同上（由嵌入 YAML 转 JSON）                                                                                 |
 | `GET /swagger/index.html`       | **Swagger UI**（当 `NEXUSROUTER_ENABLE_SWAGGER_UI` 不为 `false` 时启用）                                    |
 | `POST /v1/chat/completions`     | OpenAI 兼容 Chat Completions **反向代理**（需网关鉴权与上游配置）                                                     |
-| `POST /internal/reload-keys`    | 热加载密钥文件（仅当设置了 `NEXUSROUTER_ADMIN_RELOAD_TOKEN` 时注册；需 Bearer 该令牌）                                    |
-| `POST /internal/reload-config`  | 重新读取 `**gateway.yaml`**（同上 Bearer；未设置 `NEXUSROUTER_GATEWAY_CONFIG_FILE` 时无操作）                       |
-| `PUT /internal/upstream/active` | 仅更新内存中的 `**active_upstream_id**`（JSON：`{"active_upstream_id":"..."}`，空字符串解除 pin；**不写回磁盘**，重启后以文件为准） |
+| `POST /internal/reload-keys`    | 热加载 API Key（从数据库重新读取；仅当设置了 `NEXUSROUTER_ADMIN_RELOAD_TOKEN` 时注册；需 Bearer 该令牌）                                    |
+| `POST /internal/reload-config`  | 从数据库重新加载网关快照（同上 Bearer）                       |
+| `PUT /internal/upstream/active` | 仅更新内存中的 `**active_upstream_id**`（JSON：`{"active_upstream_id":"..."}`，空字符串解除 pin；**不写回持久化**，重启后以库/文件为准） |
 
 
 OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api/reference/overview](https://developers.openai.com/api/reference/overview)。
 
-### 运行时配置（`gateway.yaml`）
+### 运行时配置（`gateway.yaml` 与数据库）
 
-- 设置 `**NEXUSROUTER_GATEWAY_CONFIG_FILE`** 指向 YAML 文件后，进程启动时与 **环境变量中的上游列表** 合并为单一运行时快照（详见仓库内 `**gateway.yaml.example`**）。
+- 默认以 **数据库** 中保存的网关 YAML 片段与环境变量中的上游列表合并为运行时快照；若曾设置 `**NEXUSROUTER_GATEWAY_CONFIG_FILE**`，该文件可在**首次启动空库**时导入数据库（详见 `**gateway.yaml.example**`）。
 - 解析或校验失败时：**启动阶段**拒绝启动；**热加载**（`SIGHUP` 或 `POST /internal/reload-config`）失败时**保留旧快照**并打错误日志。
-- **Linux / macOS**：配置文件路径非空时，`**SIGHUP`** 会触发与 `reload-config` 相同的重载逻辑。
+- **Linux / macOS**：已启用数据库或配置文件路径非空时，`**SIGHUP`** 会触发与 `reload-config` 相同的重载逻辑。
 
 ### 中间件与限流顺序
 
@@ -58,7 +65,7 @@ OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api
 
 ### 进阶管理（限流规则 / CORS / IP 名单 / 日志）
 
-在启用管理控制台且配置 `**NEXUSROUTER_GATEWAY_CONFIG_FILE**` 时，可通过 **`/api/admin/v1`** 读写 **`rate_limit_rules`**、**`ip_access`**、**`cors`**，并查询 **`proxy_access_log`** 指向的 JSON 行日志（有扫描字节与行数上限）。误配 **IP 白名单** 时仍可通过本机 **`POST /internal/reload-config`** 或已登录管理端将 `ip_access.mode` 切回 **`off`**。CSV 导出**不包含**明文 API Key。
+在启用管理控制台时，可通过 **`/api/admin/v1`** 读写 **`rate_limit_rules`**、**`ip_access`**、**`cors`**，并查询 **`proxy_access_log`** 指向的 JSON 行日志（有扫描字节与行数上限）。误配 **IP 白名单** 时仍可通过本机 **`POST /internal/reload-config`** 或已登录管理端将 `ip_access.mode` 切回 **`off`**。CSV 导出**不包含**明文 API Key。
 
 ### 代理访问日志
 
@@ -71,10 +78,12 @@ OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `NEXUSROUTER_UPSTREAM_BASE_URLS`           | **多上游**：逗号分隔的基址列表；**非空时优先**于 `NEXUSROUTER_UPSTREAM_BASE_URL`，请求按 **轮询** 选择上游。                                                                          |
 | `NEXUSROUTER_UPSTREAM_BASE_URL`            | **单上游**（遗留）：当 `BASE_URLS` 为空时使用；未配置任何上游时 `POST /v1/chat/completions` 返回 **503**。                                                                       |
-| `NEXUSROUTER_GATEWAY_KEYS_FILE`            | **API 密钥 JSON 文件路径**（非空则优先于下方 `GATEWAY_API_KEYS`）。文件不可读或 JSON 无效时**进程启动失败**。                                                                           |
-| `NEXUSROUTER_GATEWAY_API_KEYS`             | **遗留**：逗号分隔明文密钥；仅当未设置 `GATEWAY_KEYS_FILE` 时使用。每条视为启用、无过期。                                                                                              |
+| `NEXUSROUTER_DATABASE_URL`               | **Postgres** 连接串；**非空**时启用 Postgres 持久化（与 GORM 兼容的 DSN）。为空则使用下方 SQLite 文件。                                                                 |
+| `NEXUSROUTER_SQLITE_PATH`                  | **SQLite** 文件路径；在 `DATABASE_URL` 为空时生效，默认 **`gateway.db`**（相对进程工作目录）。                                                                 |
+| `NEXUSROUTER_GATEWAY_KEYS_FILE`            | **API 密钥 JSON 文件路径**（可选）：可作为**首次启动空库**时的导入源；日常真源为数据库。未配置文件且无库内密钥、无 `GATEWAY_API_KEYS` 时，受保护路由将无可用密钥。                                                                           |
+| `NEXUSROUTER_GATEWAY_API_KEYS`             | **遗留**：逗号分隔明文密钥；可作为空库导入源或测试。                                                                                              |
 | `NEXUSROUTER_ADMIN_RELOAD_TOKEN`           | 非空时注册 `**POST /internal/reload-keys`**、`**POST /internal/reload-config**`、`**PUT /internal/upstream/active**`；请求须 `Authorization: Bearer <与本变量相同的令牌>`。 |
-| `NEXUSROUTER_GATEWAY_CONFIG_FILE`          | 可选 `**gateway.yaml**` 路径；与 env 上游等合并，支持 **SIGHUP** / `**reload-config`** 热加载。                                                                          |
+| `NEXUSROUTER_GATEWAY_CONFIG_FILE`          | 可选 `**gateway.yaml**` 路径：可作为**首次启动空库**导入源；运行态与 env 上游等在数据库中合并，支持 **SIGHUP** / `**reload-config`** 热加载。                                                                          |
 | `NEXUSROUTER_UPSTREAM_API_KEY`             | 发往上游的 Bearer（在未开启透传客户端 `Authorization` 时注入）。                                                                                                           |
 | `NEXUSROUTER_FORWARD_CLIENT_AUTHORIZATION` | `true` 时将客户端 `Authorization` 原样转发上游。                                                                                                                   |
 | `NEXUSROUTER_UPSTREAM_TIMEOUT`             | 等待上游响应头超时，如 `120s`（默认 120s）。                                                                                                                           |
@@ -93,7 +102,7 @@ OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api
 
 ### 管理控制台 API（`/api/admin/v1`）
 
-当 `**NEXUSROUTER_ENABLE_ADMIN_CONSOLE=true**` 且 JWT 密钥、用户名、bcrypt 密码哈希均已配置时注册：
+当 `**NEXUSROUTER_ENABLE_ADMIN_CONSOLE=true**` 且 JWT 密钥已配置，且 **数据库中存在 admin 用户** 或环境变量中已配置 **`NEXUSROUTER_ADMIN_USERNAME`** + **`NEXUSROUTER_ADMIN_PASSWORD_BCRYPT`** 时注册（首次启动可将 env 账号导入库）：
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
@@ -106,14 +115,14 @@ OpenAI 官方 REST 概览与认证约定见：[https://developers.openai.com/api
 | `GET` | `/api/admin/v1/alerts/status` | 运行态告警状态（依赖 `gateway.yaml` 中 `admin_alerts` 与进程内指标）。 |
 | `GET` | `/api/admin/v1/metrics/summary` | 进程内指标：请求量、成功率、平均耗时、今日/昨日、按 `code` 分桶错误等。 |
 | `GET` | `/api/admin/v1/gateway/snapshot` | 当前快照：`upstreams`、`routing`、`cors`、`rate_limit`、`rate_limit_rules`、`ip_access`、`proxy_access_log` 等。 |
-| `PUT` | `/api/admin/v1/gateway/config` | 替换 `upstreams` + `routing`；`persist: true` 时原子写 **`NEXUSROUTER_GATEWAY_CONFIG_FILE`** 并 `Reload()`。 |
-| `PUT` | `/api/admin/v1/gateway/active-upstream` | 设置 `active_upstream_id`；可选 `persist: true` 写回 YAML。 |
+| `PUT` | `/api/admin/v1/gateway/config` | 替换 `upstreams` + `routing`；`persist: true` 时写入**数据库**并刷新内存快照。 |
+| `PUT` | `/api/admin/v1/gateway/active-upstream` | 设置 `active_upstream_id`；可选 `persist: true` 写回持久化。 |
 | `GET` / `PUT` | `/api/admin/v1/gateway/cors` | 读写 CORS 段；`PUT` 可带 `allow_origins_bulk`（换行/逗号分隔）与 `persist`。 |
 | `GET` / `PUT` | `/api/admin/v1/gateway/rate-limit-rules` | 读写 `rate_limit_rules` 数组（整体替换）；`PUT` body：`{ "rules": [...], "persist": true }`。 |
 | `GET` / `PUT` | `/api/admin/v1/security/ip-access` | 读写 `ip_access`；`PATCH` 支持 `add` / `remove` CIDR 列表与可选 `mode`。 |
 | `GET` | `/api/admin/v1/logs/query` | 日志筛选与分页（`from`、`to`、`path_prefix`、`status_min`、`status_max`、`api_key_fp`、`client_ip`、`limit`、`cursor`）。 |
 | `GET` | `/api/admin/v1/logs/export.csv` | 同筛选条件的 CSV 流式下载。 |
-| `GET` | `/api/admin/v1/keys` | 列出 API Key（脱敏），需已配置 **`NEXUSROUTER_GATEWAY_KEYS_FILE`**。 |
+| `GET` | `/api/admin/v1/keys` | 列出 API Key（脱敏），依赖数据库中已有密钥记录。 |
 | `POST` | `/api/admin/v1/keys` | 新建密钥（响应体一次性返回 `secret`）。 |
 | `PATCH` | `/api/admin/v1/keys/:id` | 更新 `disabled` / `expires_at`。 |
 | `DELETE` | `/api/admin/v1/keys/:id` | 删除。 |

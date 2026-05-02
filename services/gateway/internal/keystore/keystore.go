@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/config"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/repository"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // Record 为单条密钥的运行时表示（由 JSON 或遗留 env 列表构造）。
@@ -37,30 +39,40 @@ type PublicRecord struct {
 // Store 在内存中保存密钥快照，支持原子替换以便热加载。
 type Store struct {
 	log  *zap.Logger
-	path string // 非空表示从文件加载并可 Reload
+	path string // 遗留密钥 JSON 路径（导入源或日志）；数据库模式下可为空
+	db   *gorm.DB
 
 	records atomic.Pointer[[]Record]
 }
 
-// New 根据配置构造密钥库：优先 JSON 文件，否则使用逗号分隔的遗留 env 密钥。
-func New(cfg *config.Config, log *zap.Logger) (*Store, error) {
+// New 根据配置构造密钥库：若提供 db 则从数据库加载；否则回退为 JSON 文件或遗留 env 密钥（测试用）。
+func New(cfg *config.Config, log *zap.Logger, db *gorm.DB) (*Store, error) {
 	if log == nil {
 		log = zap.NewNop()
 	}
-	s := &Store{log: log, path: strings.TrimSpace(cfg.GatewayKeysFile)}
+	s := &Store{log: log, path: strings.TrimSpace(cfg.GatewayKeysFile), db: db}
+	if db != nil {
+		var rows []repository.APIKeyModel
+		if err := db.Order("key_id").Find(&rows).Error; err != nil {
+			return nil, err
+		}
+		s.replace(recordsFromModels(rows))
+		return s, nil
+	}
 	if s.path != "" {
-		recs, err := loadRecordsFromFile(s.path)
+		recs, err := LoadRecordsFromFile(s.path)
 		if err != nil {
 			return nil, err
 		}
 		s.replace(recs)
 		return s, nil
 	}
-	s.replace(recordsFromLegacy(cfg.GatewayAPIKeys))
+	s.replace(RecordsFromLegacy(cfg.GatewayAPIKeys))
 	return s, nil
 }
 
-func recordsFromLegacy(keys []string) []Record {
+// RecordsFromLegacy 将逗号分隔遗留密钥转为记录列表。
+func RecordsFromLegacy(keys []string) []Record {
 	out := make([]Record, 0, len(keys))
 	for _, k := range keys {
 		k = strings.TrimSpace(k)
@@ -84,7 +96,8 @@ type fileRecord struct {
 	CreatedAt *string `json:"created_at,omitempty"`
 }
 
-func loadRecordsFromFile(path string) ([]Record, error) {
+// LoadRecordsFromFile 从 JSON 文件加载密钥记录（供启动导入与测试）。
+func LoadRecordsFromFile(path string) ([]Record, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -136,12 +149,20 @@ func (s *Store) replace(recs []Record) {
 	s.records.Store(&cp)
 }
 
-// Reload 从配置文件重新加载（路径为空时为 no-op）。
+// Reload 从数据库或 JSON 文件重新加载。
 func (s *Store) Reload() error {
+	if s.db != nil {
+		var rows []repository.APIKeyModel
+		if err := s.db.Order("key_id").Find(&rows).Error; err != nil {
+			return err
+		}
+		s.replace(recordsFromModels(rows))
+		return nil
+	}
 	if strings.TrimSpace(s.path) == "" {
 		return nil
 	}
-	recs, err := loadRecordsFromFile(s.path)
+	recs, err := LoadRecordsFromFile(s.path)
 	if err != nil {
 		return err
 	}
@@ -217,10 +238,10 @@ func MaskSecret(secret string) string {
 	return string(r[:4]) + "…" + string(r[len(r)-4:])
 }
 
-// ListPublic 返回脱敏后的密钥列表（需已配置密钥文件）。
+// ListPublic 返回脱敏后的密钥列表（数据库模式或已配置密钥文件）。
 func (s *Store) ListPublic() ([]PublicRecord, error) {
-	if s == nil || strings.TrimSpace(s.path) == "" {
-		return nil, fmt.Errorf("keystore: 未配置 NEXUSROUTER_GATEWAY_KEYS_FILE")
+	if s == nil || (s.db == nil && strings.TrimSpace(s.path) == "") {
+		return nil, fmt.Errorf("keystore: 未配置数据库或 NEXUSROUTER_GATEWAY_KEYS_FILE")
 	}
 	recs := s.snapshot()
 	out := make([]PublicRecord, 0, len(recs))
@@ -240,10 +261,10 @@ func (s *Store) ListPublic() ([]PublicRecord, error) {
 	return out, nil
 }
 
-// ReplaceAllRecords 原子写回 JSON 并替换内存快照（需文件模式）。
+// ReplaceAllRecords 写回数据库或 JSON 并替换内存快照。
 func (s *Store) ReplaceAllRecords(recs []Record) error {
-	if s == nil || strings.TrimSpace(s.path) == "" {
-		return fmt.Errorf("keystore: 未配置密钥文件")
+	if s == nil {
+		return fmt.Errorf("keystore: Store 为空")
 	}
 	now := time.Now().UTC()
 	norm := make([]Record, 0, len(recs))
@@ -260,6 +281,16 @@ func (s *Store) ReplaceAllRecords(recs []Record) error {
 			r.CreatedAt = &t
 		}
 		norm = append(norm, r)
+	}
+	if s.db != nil {
+		if err := repository.ReplaceAllAPIKeyModels(s.db, toAPIKeyModels(norm)); err != nil {
+			return err
+		}
+		s.replace(norm)
+		return nil
+	}
+	if strings.TrimSpace(s.path) == "" {
+		return fmt.Errorf("keystore: 未配置密钥文件")
 	}
 	raw := make([]fileRecord, 0, len(norm))
 	for _, r := range norm {

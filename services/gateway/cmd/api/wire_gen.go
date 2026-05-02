@@ -23,16 +23,20 @@ func InitializeApp() (*app.Application, error) {
 		return nil, err
 	}
 	config := provider.ProvideConfig()
-	store, err := provider.ProvideKeyStore(config, logger)
+	db, err := provider.ProvideDB(config, logger)
 	if err != nil {
 		return nil, err
 	}
-	runtimeStore, err := provider.ProvideRuntimeStore(config)
+	store, err := provider.ProvideKeyStore(config, logger, db)
+	if err != nil {
+		return nil, err
+	}
+	runtimeStore, err := provider.ProvideRuntimeStore(config, db)
 	if err != nil {
 		return nil, err
 	}
 	collector := provider.ProvideMetrics()
-	engine := provider.ProvideEngine(logger, config, store, runtimeStore, collector)
+	engine := provider.ProvideEngine(logger, config, store, runtimeStore, collector, db)
 	application := app.NewApplication(logger, engine, store, runtimeStore, config, collector)
 	return application, nil
 }

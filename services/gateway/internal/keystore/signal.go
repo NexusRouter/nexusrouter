@@ -15,7 +15,10 @@ func (s *Store) ListenSIGHUP(log *zap.Logger) {
 	if log == nil {
 		log = zap.NewNop()
 	}
-	if s == nil || s.Path() == "" {
+	if s == nil {
+		return
+	}
+	if s.db == nil && s.Path() == "" {
 		return
 	}
 	ch := make(chan os.Signal, 1)
@@ -26,7 +29,11 @@ func (s *Store) ListenSIGHUP(log *zap.Logger) {
 				log.Error("SIGHUP 重载密钥失败", zap.Error(err))
 				continue
 			}
-			log.Info("已通过 SIGHUP 重载 API 密钥文件", zap.String("path", s.Path()))
+			if s.db != nil {
+				log.Info("已通过 SIGHUP 从数据库重载 API 密钥")
+			} else {
+				log.Info("已通过 SIGHUP 重载 API 密钥文件", zap.String("path", s.Path()))
+			}
 		}
 	}()
 }

@@ -28,8 +28,12 @@ type Config struct {
 	ForwardClientAuthorization bool
 	// EnableSwaggerUI 是否暴露 /swagger/* 与相关静态资源。
 	EnableSwaggerUI bool
-	// GatewayConfigFile 可选 gateway.yaml 路径；非空时与 env 合并并由运行时热加载。
+	// GatewayConfigFile 可选 gateway.yaml 路径；非空时与 env 合并并由运行时热加载；亦可作为首次启动导入源。
 	GatewayConfigFile string
+	// DatabaseURL 非空时使用 Postgres GORM 连接串；为空时使用 SQLite 文件（见 SQLitePath）。
+	DatabaseURL string
+	// SQLitePath SQLite 数据库文件路径；DatabaseURL 为空时生效，默认 gateway.db。
+	SQLitePath string
 	// HTTPListenAddr Gin 监听地址，如 `:8080`；默认 `:8080`。
 	HTTPListenAddr string
 
@@ -131,6 +135,8 @@ func Load() *Config {
 		ForwardClientAuthorization:  fwd,
 		EnableSwaggerUI:             swagger,
 		GatewayConfigFile:           strings.TrimSpace(v.GetString("NEXUSROUTER_GATEWAY_CONFIG_FILE")),
+		DatabaseURL:                 strings.TrimSpace(v.GetString("NEXUSROUTER_DATABASE_URL")),
+		SQLitePath:                  strings.TrimSpace(v.GetString("NEXUSROUTER_SQLITE_PATH")),
 		HTTPListenAddr:              httpAddr,
 		EnableAdminConsole:          adminConsole,
 		AdminJWTSecret:              strings.TrimSpace(v.GetString("NEXUSROUTER_ADMIN_JWT_SECRET")),
@@ -142,17 +148,6 @@ func Load() *Config {
 		AdminRefreshExpire:          adminRefreshExp,
 		AdminPasswordResetSMTP:      strings.TrimSpace(v.GetString("NEXUSROUTER_ADMIN_PASSWORD_RESET_SMTP")),
 	}
-}
-
-// AdminConsoleConfigured 管理控制台是否具备最小可登录配置。
-func (c *Config) AdminConsoleConfigured() bool {
-	if c == nil || !c.EnableAdminConsole {
-		return false
-	}
-	if strings.TrimSpace(c.AdminJWTSecret) == "" || strings.TrimSpace(c.AdminUsername) == "" || strings.TrimSpace(c.AdminPasswordBcrypt) == "" {
-		return false
-	}
-	return true
 }
 
 func splitKeys(s string) []string {

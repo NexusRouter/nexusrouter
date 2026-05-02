@@ -6,10 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/repository"
 	"gopkg.in/yaml.v3"
 )
 
-// PersistSnapshot 将给定快照校验后原子写入网关配置文件并 Reload；失败时保留旧快照。
+// PersistSnapshot 将给定快照校验后写入数据库（若已配置）或原子写入网关 YAML 文件并 Reload；失败时保留旧快照。
 func (s *Store) PersistSnapshot(next *Snapshot) error {
 	if s == nil {
 		return fmt.Errorf("runtime: Store 为空")
@@ -20,13 +21,21 @@ func (s *Store) PersistSnapshot(next *Snapshot) error {
 	if err := validateSnapshot(next); err != nil {
 		return err
 	}
-	p := strings.TrimSpace(s.path)
-	if p == "" {
-		return fmt.Errorf("runtime: 未配置 NEXUSROUTER_GATEWAY_CONFIG_FILE，无法持久化")
-	}
 	b, err := marshalFileYAML(next)
 	if err != nil {
 		return err
+	}
+	if s.db != nil {
+		row := repository.GatewaySnapshotRow{ID: 1, YAMLBody: string(b)}
+		if err := s.db.Save(&row).Error; err != nil {
+			return err
+		}
+		s.v.Store(next)
+		return nil
+	}
+	p := strings.TrimSpace(s.path)
+	if p == "" {
+		return fmt.Errorf("runtime: 未配置 NEXUSROUTER_GATEWAY_CONFIG_FILE，无法持久化")
 	}
 	if err := writeFileAtomic(p, b); err != nil {
 		return err

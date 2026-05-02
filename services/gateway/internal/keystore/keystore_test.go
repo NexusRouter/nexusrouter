@@ -20,7 +20,7 @@ func TestLoadRecordsFromFile_ParseAndExpiry(t *testing.T) {
 	]`
 	require.NoError(t, os.WriteFile(p, []byte(raw), 0o600))
 
-	recs, err := loadRecordsFromFile(p)
+	recs, err := LoadRecordsFromFile(p)
 	require.NoError(t, err)
 	require.Len(t, recs, 2)
 	require.Equal(t, "sk-live", recs[0].Secret)
@@ -36,7 +36,7 @@ func TestLoadRecordsFromFile_ParseAndExpiry(t *testing.T) {
 
 func TestNew_LegacyEnvKeys(t *testing.T) {
 	cfg := &config.Config{GatewayAPIKeys: []string{"  a ", "b"}}
-	s, err := New(cfg, zap.NewNop())
+	s, err := New(cfg, zap.NewNop(), nil)
 	require.NoError(t, err)
 	require.True(t, s.ValidateBearer("a"))
 	require.True(t, s.ValidateBearer("b"))
@@ -55,7 +55,7 @@ func TestValidateBearer_DisabledAndExpiry(t *testing.T) {
 	]`
 	require.NoError(t, os.WriteFile(path, []byte(raw), 0o600))
 
-	recs, err := loadRecordsFromFile(path)
+	recs, err := LoadRecordsFromFile(path)
 	require.NoError(t, err)
 	require.Len(t, recs, 3)
 

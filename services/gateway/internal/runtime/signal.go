@@ -15,7 +15,10 @@ func (s *Store) ListenSIGHUP(log *zap.Logger) {
 	if log == nil {
 		log = zap.NewNop()
 	}
-	if s == nil || s.Path() == "" {
+	if s == nil {
+		return
+	}
+	if s.db == nil && s.Path() == "" {
 		return
 	}
 	ch := make(chan os.Signal, 1)
@@ -23,10 +26,18 @@ func (s *Store) ListenSIGHUP(log *zap.Logger) {
 	go func() {
 		for range ch {
 			if err := s.Reload(); err != nil {
-				log.Error("SIGHUP 重载网关配置失败", zap.Error(err), zap.String("path", s.Path()))
+				if s.db != nil {
+					log.Error("SIGHUP 重载网关数据库配置失败", zap.Error(err))
+				} else {
+					log.Error("SIGHUP 重载网关配置失败", zap.Error(err), zap.String("path", s.Path()))
+				}
 				continue
 			}
-			log.Info("已通过 SIGHUP 重载网关配置文件", zap.String("path", s.Path()))
+			if s.db != nil {
+				log.Info("已通过 SIGHUP 从数据库重载网关配置")
+			} else {
+				log.Info("已通过 SIGHUP 重载网关配置文件", zap.String("path", s.Path()))
+			}
 		}
 	}()
 }
