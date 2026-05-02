@@ -36,6 +36,8 @@ func TestProvideEngine_HealthAndNotFound(t *testing.T) {
 		assert.Equal(t, "ok", body["status"])
 		assert.NotEmpty(t, body["version"])
 		assert.NotEmpty(t, body["server_time"])
+		assert.NotEmpty(t, body["start_time"])
+		assert.Contains(t, body, "uptime_seconds")
 	})
 
 	t.Run("GET /unknown JSON 404", func(t *testing.T) {

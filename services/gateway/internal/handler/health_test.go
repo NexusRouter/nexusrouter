@@ -21,11 +21,18 @@ func TestHealth_JSONFieldsAndRFC3339(t *testing.T) {
 	r.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	var body map[string]string
+	var body map[string]any
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	require.Equal(t, "ok", body["status"])
 	require.NotEmpty(t, body["version"])
-	require.NotEmpty(t, body["server_time"])
-	_, err := time.Parse(time.RFC3339Nano, body["server_time"])
+	serverTimeStr, ok := body["server_time"].(string)
+	require.True(t, ok)
+	_, err := time.Parse(time.RFC3339Nano, serverTimeStr)
 	require.NoError(t, err)
+	startTimeStr, ok := body["start_time"].(string)
+	require.True(t, ok)
+	_, err = time.Parse(time.RFC3339Nano, startTimeStr)
+	require.NoError(t, err)
+	require.Contains(t, body, "uptime_seconds")
+	require.IsType(t, float64(0), body["uptime_seconds"])
 }
