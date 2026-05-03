@@ -2,7 +2,7 @@
 
 ## Purpose
 
-定义网关 **`GET /health`** 的探活语义：返回进程状态、版本标识与服务端时间，供负载均衡与外部监控在无密钥条件下判断可用性。
+定义网关 **`GET /health`** 的探活语义：返回进程状态、版本标识、进程启动时间、已运行时长与服务端时间，供负载均衡与外部监控在无密钥条件下判断可用性。
 
 ## Requirements
 
@@ -13,7 +13,7 @@
 #### Scenario: 成功响应结构
 
 - **WHEN** 客户端对 **`/health`** 发起 **GET**
-- **THEN** 响应状态码为 **200**，`Content-Type` 为 **`application/json`**，且 JSON 对象 MUST 至少包含：**`status`**（字符串，进程正常接受流量时为 **`ok`**）、**`version`**（字符串，构建或发布标识；未注入构建信息时允许为约定占位如 **`dev`**）、**`server_time`**（字符串，服务端当前 UTC 时间，MUST 符合 **RFC3339** 或 **RFC3339Nano**）
+- **THEN** 响应状态码为 **200**，`Content-Type` 为 **`application/json`**，且 JSON 对象 MUST 至少包含：**`status`**（字符串，进程正常接受流量时为 **`ok`**）、**`version`**（字符串，构建或发布标识；未注入构建信息时允许为约定占位如 **`dev`**）、**`start_time`**（字符串，进程启动时刻 UTC，MUST 符合 **RFC3339** 或 **RFC3339Nano**）、**`uptime_seconds`**（数字，自进程启动至响应该请求已运行秒数）、**`server_time`**（字符串，服务端当前 UTC 时间，MUST 符合 **RFC3339** 或 **RFC3339Nano**）
 
 #### Scenario: 监控可解析
 

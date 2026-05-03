@@ -38,3 +38,24 @@ func TestRegister_Health_OK(t *testing.T) {
 	assert.NotEmpty(t, body["version"])
 	assert.NotEmpty(t, body["server_time"])
 }
+
+func TestRegister_Health_HEAD_OK_NoBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	cfg := &config.Config{}
+	rt, err := runtime.NewStore(cfg, nil)
+	require.NoError(t, err)
+	Register(r, Deps{
+		Config:  cfg,
+		Log:     zap.NewNop(),
+		Runtime: rt,
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodHead, "/health", nil)
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Empty(t, rec.Body.String())
+	require.NotEmpty(t, rec.Header().Get("Content-Length"))
+}

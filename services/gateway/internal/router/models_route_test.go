@@ -63,4 +63,20 @@ func TestRegister_Models_Routes(t *testing.T) {
 		e.ServeHTTP(rec, req)
 		require.Equal(t, http.StatusNotFound, rec.Code)
 	})
+
+	t.Run("OPTIONS /v1/models 204 无鉴权", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodOptions, "/v1/models", nil)
+		e.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusNoContent, rec.Code)
+		require.Empty(t, rec.Body.String())
+	})
+
+	t.Run("OPTIONS /v1/models/foo 204 无鉴权", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodOptions, "/v1/models/foo", nil)
+		e.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusNoContent, rec.Code)
+		require.Empty(t, rec.Body.String())
+	})
 }

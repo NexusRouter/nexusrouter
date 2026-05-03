@@ -8,3 +8,9 @@ func TestVersionNonEmpty(t *testing.T) {
 		t.Fatal("Version 为空")
 	}
 }
+
+func TestProcessStartSet(t *testing.T) {
+	if ProcessStart.IsZero() {
+		t.Fatal("ProcessStart 未初始化")
+	}
+}

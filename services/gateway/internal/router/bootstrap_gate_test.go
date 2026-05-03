@@ -53,3 +53,27 @@ func TestBootstrapGate_AllowsWhitelist(t *testing.T) {
 	r.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusTeapot, rec.Code)
 }
+
+func TestBootstrapGate_AllowsAPIStatusWhenUninitialized(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "g3.db")), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, repository.AutoMigrate(db))
+	require.NoError(t, repository.EnsureSystemBootstrap(db))
+
+	r := gin.New()
+	r.Use(RequestID())
+	r.Use(BootstrapGate(db, zap.NewNop()))
+	r.GET("/api/status", func(c *gin.Context) { c.Status(http.StatusTeapot) })
+	r.GET("/v1/x", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/status", nil)
+	r.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusTeapot, rec.Code)
+
+	rec2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest(http.MethodGet, "/v1/x", nil)
+	r.ServeHTTP(rec2, req2)
+	require.Equal(t, http.StatusForbidden, rec2.Code)
+}

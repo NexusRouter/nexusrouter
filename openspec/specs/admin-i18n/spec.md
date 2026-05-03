@@ -1,28 +1,30 @@
 # admin-i18n Specification
 
 ## Purpose
-TBD - created by archiving change admin-auxiliary-i18n-rbac-alerts. Update Purpose after archive.
+
+定义管理控制台中英文案与**核心术语表**的组织方式，使其支撑全局 UX 与空态/错误基线，并与 `admin-console-global-ux` 对齐。
+
 ## Requirements
-### Requirement: 仪表盘语言资源与默认语言
 
-系统 MUST 为管理仪表盘提供 **中文（zh）** 与 **英文（en）** 两套用户可见文案资源；**默认语言 MUST 为中文**。所有管理页标题、菜单、按钮、表单标签、表格列头、空态与 `message` / `notification` 提示 MUST 通过国际化键解析，MUST NOT 在 JSX 中保留仅单一自然语言的终态用户文案（开发期占位除外）。
+### Requirement: 控制台核心术语表
 
-#### Scenario: 首次访问为中文
+系统 MUST 在仪表盘 i18n 资源中提供**控制台核心术语**的键集合（建议使用统一前缀如 `consoleTerms.*` 或 `glossary.*`），覆盖侧栏域标题、侧栏项、以及与用户任务强相关的跨页概念（如网关策略、上游、API Key、访问日志等）。中文与英文 MUST 表达同一含义；MUST NOT 在同一界面混用未定义的英文缩写作为主标签而无首次解释。
 
-- **WHEN** 用户首次打开仪表盘根路径且浏览器未持久化语言偏好
-- **THEN** 界面显示中文文案
+#### Scenario: 双语对照一致
 
-#### Scenario: 切换为英文
+- **WHEN** 用户在中文与英文之间切换
+- **THEN** 术语表所覆盖的文案同步切换且语义一致
 
-- **WHEN** 用户在设置或顶栏选择 English
-- **THEN** 上述文案切换为英文且 Ant Design 组件语言与日期类展示与所选语言一致
+#### Scenario: 侧栏引用术语键
 
-### Requirement: 语言偏好持久化
+- **WHEN** 审查者检查侧栏域标题与菜单项文案来源
+- **THEN** 其用户可见字符串来自 i18n 键而非 JSX 硬编码终态文案（开发期占位除外）
 
-系统 MUST 将用户所选语言持久化到 **浏览器本地存储**（或等价机制），以便刷新后保持；MUST NOT 将语言偏好写入需服务端信任的安全敏感 Cookie 除非同时满足 HTTPS 与团队安全基线（首版推荐 localStorage）。
+### Requirement: 与全局 UX 规格对齐
 
-#### Scenario: 刷新后保持语言
+`admin-i18n` 的术语与文案组织 MUST 支持 `admin-console-global-ux` 中「术语与主副文案层级」及「空态、加载与错误基线」对 i18n 的要求；新增键 MUST 同时提供 `zh` 与 `en`。
 
-- **WHEN** 用户已选择英文并刷新页面
-- **THEN** 界面仍为英文
+#### Scenario: 空态与错误可走 i18n
 
+- **WHEN** 某页展示全局基线要求的空态或错误提示
+- **THEN** 该提示文案可通过 i18n 解析为中英之一

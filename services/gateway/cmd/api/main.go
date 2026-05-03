@@ -1,14 +1,40 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"os"
 	"strings"
 
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/buildinfo"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/config"
 	"go.uber.org/zap"
 )
 
 // NexusRouter API 网关（OpenAI 兼容 Chat Completions 反向代理）。
 func main() {
+	mode, cliPort, cliLogDir, err := parseStartupCLI(os.Args, os.Stderr)
+	if err != nil {
+		os.Exit(2)
+	}
+	switch mode {
+	case earlyCLIVersion:
+		_, _ = fmt.Fprintln(os.Stdout, buildinfo.Version)
+		os.Exit(0)
+	case earlyCLIHelp:
+		writeCLIHelp(os.Args, os.Stdout)
+		os.Exit(0)
+	}
+
+	config.LoadDotEnv()
+	if err := applyCLIPort(cliPort); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(2)
+	}
+	if err := applyCLILogDir(cliLogDir); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(2)
+	}
 	app, err := InitializeApp()
 	if err != nil {
 		log.Fatalf("初始化失败: %v", err)

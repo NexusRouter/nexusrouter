@@ -50,6 +50,9 @@ func bootstrapPathAllowlisted(method, path string) bool {
 		if path == "/health" {
 			return true
 		}
+		if path == "/api/status" {
+			return true
+		}
 		if path == "/api/bootstrap/v1/status" {
 			return true
 		}

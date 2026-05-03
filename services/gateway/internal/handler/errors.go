@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -25,6 +26,28 @@ func randomRequestID() string {
 }
 
 // WriteGatewayError 写入网关统一 JSON 错误（含 request_id，与 X-Request-ID 响应头一致）。
+// WriteOpenAINotFoundPath 对未匹配任何已注册路由、且路径属于 OpenAI 兼容 v1 命名空间（**`/v1`** 或 **`/v1/…`**）的请求写入 **404**，body 为常见 **`error`** 对象（**`type`** 为 **`invalid_request_error`**），便于沿用 OpenAI 客户端错误解析逻辑；**`X-Request-ID`** 与 Gin 中的 **`request_id`** 在已存在时保持一致。
+func WriteOpenAINotFoundPath(c *gin.Context) {
+	rid := c.GetString("request_id")
+	if rid == "" {
+		rid = c.GetHeader(headerRequestID)
+	}
+	if rid == "" {
+		rid = randomRequestID()
+	}
+	c.Writer.Header().Set(headerRequestID, rid)
+	c.Set("request_id", rid)
+	msg := fmt.Sprintf("Invalid URL (%s %s)", c.Request.Method, c.Request.URL.Path)
+	c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+		"error": gin.H{
+			"message": msg,
+			"type":    "invalid_request_error",
+			"param":   "",
+			"code":    "",
+		},
+	})
+}
+
 func WriteGatewayError(c *gin.Context, status int, code, message string) {
 	rid := c.GetString("request_id")
 	if rid == "" {

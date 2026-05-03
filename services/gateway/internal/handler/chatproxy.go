@@ -3,16 +3,19 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
-	"io"
+	"errors"
+	"math"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/accesslog"
+	"github.com/NexusRouter/nexusrouter/services/gateway/internal/bodyreuse"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/config"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/metrics"
 	"github.com/NexusRouter/nexusrouter/services/gateway/internal/repository"
@@ -23,9 +26,40 @@ import (
 	"gorm.io/gorm"
 )
 
+func newChatUpstreamTransport(cfg *config.Config, responseHeaderTimeout time.Duration) *http.Transport {
+	tr := &http.Transport{
+		ResponseHeaderTimeout: responseHeaderTimeout,
+		DialContext:           (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
+		// 不向出站请求自动附加 Accept-Encoding: gzip，与出站头剔除一致，避免上游按压缩响应体协商。
+		DisableCompression: true,
+	}
+	if cfg == nil {
+		return tr
+	}
+	p := strings.TrimSpace(cfg.UpstreamHTTPProxy)
+	if p == "" {
+		return tr
+	}
+	u, err := url.Parse(p)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return tr
+	}
+	tr.Proxy = http.ProxyURL(u)
+	return tr
+}
+
 var hopByHopHeaders = []string{
 	"Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization",
 	"Te", "Trailer", "Transfer-Encoding", "Upgrade",
+}
+
+// sanitizeChatOutboundRequestHeaders 在发往 Chat 上游的出站请求上剔除 hop-by-hop 头，并移除 Accept-Encoding，
+// 避免将客户端对响应体的压缩协商原样带给上游（与常见 OpenAI 兼容代理行为一致）。
+func sanitizeChatOutboundRequestHeaders(h http.Header) {
+	for _, name := range hopByHopHeaders {
+		h.Del(name)
+	}
+	h.Del("Accept-Encoding")
 }
 
 type captureWriter struct {
@@ -47,6 +81,143 @@ func (w *captureWriter) Write(b []byte) (int, error) {
 	return w.ResponseWriter.Write(b)
 }
 
+// ensureSSEProxyResponseHeaders 在反向代理回写客户端前为 SSE 响应补充提示头，减少中间层整段缓冲导致的首包与增量延迟。
+// 若上游未提供 Cache-Control，则设为 no-cache，避免中间层误缓存流式响应。
+// 若 Connection 缺省，则设为 keep-alive，便于 HTTP/1.x 客户端与部分中间层保持长连接语义。
+func ensureSSEProxyResponseHeaders(h http.Header) {
+	ct := strings.ToLower(strings.TrimSpace(h.Get("Content-Type")))
+	if ct == "" || !strings.Contains(ct, "text/event-stream") {
+		return
+	}
+	h.Set("X-Accel-Buffering", "no")
+	if strings.TrimSpace(h.Get("Cache-Control")) == "" {
+		h.Set("Cache-Control", "no-cache")
+	}
+	if strings.TrimSpace(h.Get("Connection")) == "" {
+		h.Set("Connection", "keep-alive")
+	}
+}
+
+func chatRequestStreamEnabled(body []byte) bool {
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(body, &obj); err != nil {
+		return false
+	}
+	raw, ok := obj["stream"]
+	if !ok {
+		return false
+	}
+	var v bool
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return false
+	}
+	return v
+}
+
+// applyChatUpstreamDefaultHeaders 在转发前按请求体与入站头补充上游协商所需头（不修改 body）。
+// 当 JSON 顶层 stream 为 true 且客户端未提供非空 Accept 时，设置 Accept: text/event-stream，与常见 OpenAI 兼容上游对流式的期望一致。
+func applyChatUpstreamDefaultHeaders(pr *httputil.ProxyRequest, body []byte) {
+	if strings.TrimSpace(pr.In.Header.Get("Accept")) != "" {
+		return
+	}
+	if !chatRequestStreamEnabled(body) {
+		return
+	}
+	pr.Out.Header.Set("Accept", "text/event-stream")
+}
+
+// mergeChatStreamIncludeUsage 在顶层 stream 为 true 时合并或写入 stream_options.include_usage=true，保留 stream_options 中其它键。
+// 若 body 非对象 JSON、stream 非 true、或 stream_options 已存在且非 JSON 对象，则返回原样 body。
+func mergeChatStreamIncludeUsage(body []byte) []byte {
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(body, &obj); err != nil {
+		return body
+	}
+	rawStream, ok := obj["stream"]
+	if !ok {
+		return body
+	}
+	var streamVal bool
+	if err := json.Unmarshal(rawStream, &streamVal); err != nil || !streamVal {
+		return body
+	}
+	opts := map[string]json.RawMessage{}
+	if rawSO, ok := obj["stream_options"]; ok && len(rawSO) > 0 {
+		if err := json.Unmarshal(rawSO, &opts); err != nil {
+			return body
+		}
+	}
+	opts["include_usage"] = json.RawMessage("true")
+	merged, err := json.Marshal(opts)
+	if err != nil {
+		return body
+	}
+	obj["stream_options"] = json.RawMessage(merged)
+	out, err := json.Marshal(obj)
+	if err != nil {
+		return body
+	}
+	return out
+}
+
+// validateChatCompletionsMaxTokens 在 body 为 JSON 对象且含 max_tokens 时校验其值：
+// 须为整数，范围 [0, MaxInt32/2]；与常见 OpenAI 兼容栈对非法 max_tokens 的拒绝语义一致。
+func validateChatCompletionsMaxTokens(body []byte) error {
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(body, &obj); err != nil {
+		return nil
+	}
+	raw, ok := obj["max_tokens"]
+	if !ok {
+		return nil
+	}
+	if len(bytes.TrimSpace(raw)) == 0 || string(raw) == "null" {
+		return nil
+	}
+	var v interface{}
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return errors.New("max_tokens 须为整数")
+	}
+	if v == nil {
+		return nil
+	}
+	f, ok := v.(float64)
+	if !ok {
+		return errors.New("max_tokens 须为整数")
+	}
+	if f != math.Trunc(f) {
+		return errors.New("max_tokens 须为整数")
+	}
+	if f < 0 || f > float64(math.MaxInt32/2) {
+		return errors.New("max_tokens 超出允许范围")
+	}
+	return nil
+}
+
+// validateChatCompletionsMessages 在 body 为 JSON 对象时要求顶层 messages 为至少含一项的 JSON 数组；
+// 缺省、为 null、类型非数组或长度为 0 时拒绝，与常见 Chat Completions 必填语义一致。
+func validateChatCompletionsMessages(body []byte) error {
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(body, &obj); err != nil {
+		return nil
+	}
+	raw, ok := obj["messages"]
+	if !ok {
+		return errors.New("请求体缺少 messages 字段")
+	}
+	if len(bytes.TrimSpace(raw)) == 0 || string(raw) == "null" {
+		return errors.New("messages 不可为 null")
+	}
+	var arr []json.RawMessage
+	if err := json.Unmarshal(raw, &arr); err != nil {
+		return errors.New("messages 须为数组")
+	}
+	if len(arr) == 0 {
+		return errors.New("messages 须至少包含一条消息")
+	}
+	return nil
+}
+
 func extractChatModelField(body []byte) string {
 	var obj map[string]json.RawMessage
 	if err := json.Unmarshal(body, &obj); err != nil {
@@ -65,12 +236,10 @@ func extractChatModelField(body []byte) string {
 
 // ChatProxy 将 POST /v1/chat/completions 反向代理至上游。
 // 若库中存在 model_instance 记录，则仅使用四表 + model_upstream.base_url（不与 gateway.yaml 混用）。
+// 发往上游的 HTTP 客户端可在配置中显式设置代理 URL；未设置时沿用 net/http 默认（含 HTTP_PROXY 等环境变量）。
 func ChatProxy(cfg *config.Config, log *zap.Logger, rt *runtime.Store, col *metrics.Collector, db *gorm.DB) gin.HandlerFunc {
 	pick := upstream.NewPicker()
-	baseTransport := &http.Transport{
-		ResponseHeaderTimeout: cfg.UpstreamTimeout,
-		DialContext:           (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
-	}
+	baseTransport := newChatUpstreamTransport(cfg, cfg.UpstreamTimeout)
 
 	return func(c *gin.Context) {
 		start := time.Now()
@@ -86,15 +255,18 @@ func ChatProxy(cfg *config.Config, log *zap.Logger, rt *runtime.Store, col *metr
 			col.RecordChat(st, time.Since(start).Milliseconds(), code)
 		}()
 
-		var body []byte
-		if c.Request.Body != nil {
-			var err error
-			body, err = io.ReadAll(c.Request.Body)
-			_ = c.Request.Body.Close()
-			if err != nil {
-				WriteGatewayError(c, http.StatusBadRequest, "INVALID_REQUEST", "无法读取请求体")
-				return
-			}
+		body, err := bodyreuse.GetRequestBody(c)
+		if err != nil {
+			WriteGatewayError(c, http.StatusBadRequest, "INVALID_REQUEST", "无法读取请求体")
+			return
+		}
+		if err := validateChatCompletionsMaxTokens(body); err != nil {
+			WriteGatewayError(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+			return
+		}
+		if err := validateChatCompletionsMessages(body); err != nil {
+			WriteGatewayError(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+			return
 		}
 
 		var (
@@ -119,8 +291,7 @@ func ChatProxy(cfg *config.Config, log *zap.Logger, rt *runtime.Store, col *metr
 				return
 			}
 			body = repository.RewriteChatBodyToProvider(body, tgt.ProviderModelCode)
-			base = baseTransport.Clone()
-			base.ResponseHeaderTimeout = tgt.Timeout
+			base = newChatUpstreamTransport(cfg, tgt.Timeout)
 			upID = "inst:" + strconv.FormatInt(tgt.InstanceID, 10)
 			upHost = tgt.UpstreamHost
 			target := tgt.BaseURL
@@ -133,9 +304,8 @@ func ChatProxy(cfg *config.Config, log *zap.Logger, rt *runtime.Store, col *metr
 					} else {
 						pr.Out.Header.Del("Authorization")
 					}
-					for _, h := range hopByHopHeaders {
-						pr.Out.Header.Del(h)
-					}
+					sanitizeChatOutboundRequestHeaders(pr.Out.Header)
+					applyChatUpstreamDefaultHeaders(pr, body)
 				},
 			}
 		} else {
@@ -160,23 +330,24 @@ func ChatProxy(cfg *config.Config, log *zap.Logger, rt *runtime.Store, col *metr
 							pr.Out.Header.Set("Authorization", "Bearer "+cfg.UpstreamAPIKey)
 						}
 					}
-					for _, h := range hopByHopHeaders {
-						pr.Out.Header.Del(h)
-					}
+					sanitizeChatOutboundRequestHeaders(pr.Out.Header)
+					applyChatUpstreamDefaultHeaders(pr, body)
 				},
 			}
 		}
 
-		c.Request.Body = io.NopCloser(bytes.NewReader(body))
-		c.Request.ContentLength = int64(len(body))
-		c.Request.Form = nil
-		c.Request.PostForm = nil
+		if cfg.ChatStreamIncludeUsageEffective() {
+			body = mergeChatStreamIncludeUsage(body)
+		}
+
+		bodyreuse.ResetRequestBody(c, body)
 
 		rev.Transport = base
 		rev.ModifyResponse = func(resp *http.Response) error {
 			for _, h := range hopByHopHeaders {
 				resp.Header.Del(h)
 			}
+			ensureSSEProxyResponseHeaders(resp.Header)
 			return nil
 		}
 		rev.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
@@ -197,7 +368,11 @@ func ChatProxy(cfg *config.Config, log *zap.Logger, rt *runtime.Store, col *metr
 		defer func() {
 			if rec := recover(); rec != nil {
 				if log != nil {
-					log.Error("chat proxy panic", zap.Any("error", rec), zap.String("request_id", c.GetString("request_id")))
+					log.Error("chat proxy panic",
+						zap.Any("error", rec),
+						zap.String("request_id", c.GetString("request_id")),
+						zap.String("stack", string(debug.Stack())),
+					)
 				}
 				if !c.Writer.Written() {
 					WriteGatewayError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "服务器内部错误")

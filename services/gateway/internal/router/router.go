@@ -27,8 +27,8 @@ type Deps struct {
 	DB       *gorm.DB
 }
 
-// Register 注册业务路由与 Chat 代理。
-// 引擎级顺序见 provider：CORS → RequestID → Recovery → ErrorJSON → IP 限流 → IP 名单 → 本处 GatewayAuth → Key 限流 → ChatProxy。
+// Register 注册业务路由与 OpenAI 兼容代理（Chat、Embeddings、Moderations、Images Generations、Audio Speech）。
+// 引擎级顺序见 provider：CORS → RequestID → AcceptLanguage → ZapHTTPAccessLog → GzipRequestDecode → Recovery → ErrorJSON → RootStrictNoCache → UploadsStaticCache → IP 限流 → IP 名单 → 本处 GatewayAuth → Key 限流 → ChatProxy / EmbeddingsProxy / ModerationsProxy / ImagesGenerationsProxy / AudioSpeechProxy。（GET /api/status 无需鉴权。）
 func Register(r *gin.Engine, d Deps) {
 	if d.Log == nil {
 		d.Log = zap.NewNop()
@@ -41,7 +41,11 @@ func Register(r *gin.Engine, d Deps) {
 	adm := adminauth.New(cfg, d.DB)
 	handler.RegisterFirstBootRoutes(r, cfg, d.DB, adm, log)
 
-	r.GET("/health", handler.Health())
+	health := handler.Health()
+	r.GET("/health", health)
+	r.HEAD("/health", health)
+
+	r.GET("/api/status", handler.APIStatus())
 
 	uploadRoot := cfg.EffectiveUploadsDir()
 	if err := os.MkdirAll(filepath.Join(uploadRoot, "vendor-logos"), 0755); err != nil {
@@ -72,12 +76,47 @@ func Register(r *gin.Engine, d Deps) {
 		r.Handle(method, "/v1/chat/completions", disallow)
 	}
 	for _, method := range []string{
+		http.MethodGet, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead,
+	} {
+		r.Handle(method, "/v1/embeddings", disallow)
+		r.Handle(method, "/v1/engines/:model/embeddings", disallow)
+		r.Handle(method, "/v1/moderations", disallow)
+		r.Handle(method, "/v1/images/generations", disallow)
+		r.Handle(method, "/v1/audio/speech", disallow)
+	}
+	for _, method := range []string{
 		http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead,
 	} {
 		r.Handle(method, "/v1/models", disallowModels)
+	}
+	// DELETE /v1/models/:model 由显式未实现路由返回 501，不在此处以 405 占位。
+	for _, method := range []string{
+		http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodHead,
+	} {
 		r.Handle(method, "/v1/models/:model", disallowModels)
 	}
 	r.Handle(http.MethodOptions, "/v1/chat/completions", func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	r.Handle(http.MethodOptions, "/v1/models", func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	r.Handle(http.MethodOptions, "/v1/models/:model", func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	r.Handle(http.MethodOptions, "/v1/embeddings", func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	r.Handle(http.MethodOptions, "/v1/engines/:model/embeddings", func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	r.Handle(http.MethodOptions, "/v1/moderations", func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	r.Handle(http.MethodOptions, "/v1/images/generations", func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	r.Handle(http.MethodOptions, "/v1/audio/speech", func(c *gin.Context) {
 		c.Status(http.StatusNoContent)
 	})
 
@@ -95,6 +134,33 @@ func Register(r *gin.Engine, d Deps) {
 		handler.KeyRateLimit(d.Runtime, log, d.Metrics),
 		handler.ChatProxy(cfg, log, d.Runtime, d.Metrics, d.DB),
 	)
+	r.POST("/v1/embeddings",
+		handler.GatewayAuth(d.KeyStore, d.Metrics),
+		handler.KeyRateLimit(d.Runtime, log, d.Metrics),
+		handler.EmbeddingsProxy(cfg, log, d.Runtime, d.Metrics, d.DB),
+	)
+	r.POST("/v1/engines/:model/embeddings",
+		handler.GatewayAuth(d.KeyStore, d.Metrics),
+		handler.KeyRateLimit(d.Runtime, log, d.Metrics),
+		handler.EmbeddingsProxy(cfg, log, d.Runtime, d.Metrics, d.DB),
+	)
+	r.POST("/v1/moderations",
+		handler.GatewayAuth(d.KeyStore, d.Metrics),
+		handler.KeyRateLimit(d.Runtime, log, d.Metrics),
+		handler.ModerationsProxy(cfg, log, d.Runtime, d.Metrics, d.DB),
+	)
+	r.POST("/v1/images/generations",
+		handler.GatewayAuth(d.KeyStore, d.Metrics),
+		handler.KeyRateLimit(d.Runtime, log, d.Metrics),
+		handler.ImagesGenerationsProxy(cfg, log, d.Runtime, d.Metrics, d.DB),
+	)
+	r.POST("/v1/audio/speech",
+		handler.GatewayAuth(d.KeyStore, d.Metrics),
+		handler.KeyRateLimit(d.Runtime, log, d.Metrics),
+		handler.AudioSpeechProxy(cfg, log, d.Runtime, d.Metrics, d.DB),
+	)
+
+	registerOpenAIV1NotImplementedRoutes(r, d)
 
 	handler.RegisterAdminConsole(r, cfg, adm, d.Metrics, d.Runtime, d.KeyStore, log, d.DB)
 }

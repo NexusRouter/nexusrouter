@@ -24,6 +24,86 @@ func TestLoad_AdminConsoleExplicitFalse(t *testing.T) {
 	}
 }
 
+func TestLoad_UpstreamHTTPProxyTrimmed(t *testing.T) {
+	t.Setenv("NEXUSROUTER_UPSTREAM_HTTP_PROXY", " http://proxy.internal:3128 ")
+	cfg := Load()
+	if cfg.UpstreamHTTPProxy != "http://proxy.internal:3128" {
+		t.Fatalf("UpstreamHTTPProxy: got %q", cfg.UpstreamHTTPProxy)
+	}
+}
+
+func TestLoad_SQLiteBusyTimeoutMS(t *testing.T) {
+	t.Setenv("NEXUSROUTER_SQLITE_BUSY_TIMEOUT_MS", "12000")
+	cfg := Load()
+	if cfg.SQLiteBusyTimeoutMS != 12000 {
+		t.Fatalf("SQLiteBusyTimeoutMS: got %d", cfg.SQLiteBusyTimeoutMS)
+	}
+}
+
+func TestLoad_LogDirTrimmed(t *testing.T) {
+	t.Setenv("NEXUSROUTER_LOG_DIR", " /var/log/nexus ")
+	cfg := Load()
+	if cfg.LogDir != "/var/log/nexus" {
+		t.Fatalf("LogDir: got %q", cfg.LogDir)
+	}
+}
+
+func TestLoad_LogDailyFileFromEnv(t *testing.T) {
+	t.Setenv("NEXUSROUTER_LOG_DAILY_FILE", "true")
+	cfg := Load()
+	if !cfg.LogDailyFile {
+		t.Fatal("expected LogDailyFile true")
+	}
+}
+
+func TestLoad_FrontendBaseURLTrimmedHTTPS(t *testing.T) {
+	t.Setenv("NEXUSROUTER_FRONTEND_BASE_URL", " https://ui.example.test/path/ ")
+	cfg := Load()
+	if cfg.FrontendBaseURL != "https://ui.example.test/path" {
+		t.Fatalf("FrontendBaseURL: got %q", cfg.FrontendBaseURL)
+	}
+}
+
+func TestLoad_FrontendBaseURLInvalidEmpty(t *testing.T) {
+	t.Setenv("NEXUSROUTER_FRONTEND_BASE_URL", "javascript:alert(1)")
+	cfg := Load()
+	if cfg.FrontendBaseURL != "" {
+		t.Fatalf("expected empty FrontendBaseURL for invalid scheme, got %q", cfg.FrontendBaseURL)
+	}
+}
+
+func TestConfig_ChatStreamIncludeUsageEffective_OmittedNilTrue(t *testing.T) {
+	cfg := &Config{}
+	if cfg.ChatStreamIncludeUsage != nil {
+		t.Fatal("expected nil pointer when field omitted")
+	}
+	if !cfg.ChatStreamIncludeUsageEffective() {
+		t.Fatal("nil pointer must mean effective true")
+	}
+}
+
+func TestLoad_ChatStreamIncludeUsageExplicitFalse(t *testing.T) {
+	t.Setenv("NEXUSROUTER_CHAT_STREAM_INCLUDE_USAGE", "false")
+	cfg := Load()
+	if cfg.ChatStreamIncludeUsage == nil || *cfg.ChatStreamIncludeUsage {
+		t.Fatalf("expected pointer to false, got %v", cfg.ChatStreamIncludeUsage)
+	}
+	if cfg.ChatStreamIncludeUsageEffective() {
+		t.Fatal("expected ChatStreamIncludeUsageEffective false")
+	}
+}
+
+func TestLoad_ChatStreamIncludeUsageExplicitTrue(t *testing.T) {
+	t.Setenv("NEXUSROUTER_CHAT_STREAM_INCLUDE_USAGE", "true")
+	cfg := Load()
+	if cfg.ChatStreamIncludeUsage == nil || !*cfg.ChatStreamIncludeUsage {
+		t.Fatalf("expected pointer to true, got %v", cfg.ChatStreamIncludeUsage)
+	}
+	if !cfg.ChatStreamIncludeUsageEffective() {
+		t.Fatal("expected ChatStreamIncludeUsageEffective true")
+	}
+}
+
 func TestLoad_AutoGeneratesJWTWhenSecretUnset(t *testing.T) {
 	t.Setenv("NEXUSROUTER_ADMIN_JWT_SECRET", "")
 	cfg := Load()
@@ -35,5 +115,32 @@ func TestLoad_AutoGeneratesJWTWhenSecretUnset(t *testing.T) {
 	}
 	if len(cfg.AdminJWTSecret) != 36 || strings.Count(cfg.AdminJWTSecret, "-") != 4 {
 		t.Fatalf("expected UUID v4 shape, got %q", cfg.AdminJWTSecret)
+	}
+}
+
+func TestLoad_HTTPListenAddrFromPORT(t *testing.T) {
+	t.Setenv("NEXUSROUTER_HTTP_LISTEN_ADDR", "")
+	t.Setenv("PORT", "3000")
+	cfg := Load()
+	if cfg.HTTPListenAddr != ":3000" {
+		t.Fatalf("HTTPListenAddr: got %q want :3000", cfg.HTTPListenAddr)
+	}
+}
+
+func TestLoad_HTTPListenAddrPrimaryOverPORT(t *testing.T) {
+	t.Setenv("NEXUSROUTER_HTTP_LISTEN_ADDR", ":9090")
+	t.Setenv("PORT", "3000")
+	cfg := Load()
+	if cfg.HTTPListenAddr != ":9090" {
+		t.Fatalf("HTTPListenAddr: got %q want :9090", cfg.HTTPListenAddr)
+	}
+}
+
+func TestLoad_HTTPListenAddrPORTHostPair(t *testing.T) {
+	t.Setenv("NEXUSROUTER_HTTP_LISTEN_ADDR", "")
+	t.Setenv("PORT", "127.0.0.1:4000")
+	cfg := Load()
+	if cfg.HTTPListenAddr != "127.0.0.1:4000" {
+		t.Fatalf("HTTPListenAddr: got %q", cfg.HTTPListenAddr)
 	}
 }

@@ -93,3 +93,15 @@ Desktop.ini
 # Optional local env overrides (keep .env.example tracked if you use one)
 .env.local
 .env.*.local
+
+# 本地自动同步：脚本、模板、停止标记、临时摘要、归档日志与快照（不纳入版本库）
+scripts/autosync*.sh
+scripts/perpetual-sync-loop.sh
+scripts/env.autosync.example
+scripts/prompts/autosync*
+.env.autosync
+.autosync-last-feature-summary.txt
+.stop-autosync-loop
+.stop-sync-loop
+docs/spec-archive/autosync*
+docs/spec-archive/openspec-snapshot-*
